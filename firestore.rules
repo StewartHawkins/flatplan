@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Keep this in sync with ADMIN_EMAIL near the top of index.html.
+    function adminEmail() {
+      return 'stewart.hawkins@forbes.com.au';
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email != null;
+    }
+
+    function emailLower() {
+      return request.auth.token.email.lower();
+    }
+
+    function isAdmin() {
+      return isSignedIn() && emailLower() == adminEmail();
+    }
+
+    function isAllowed() {
+      return isSignedIn() && (
+        isAdmin() ||
+        exists(/databases/$(database)/documents/allowlist/$(emailLower()))
+      );
+    }
+
+    // Team roster — only the admin can add or remove people.
+    match /allowlist/{emailId} {
+      allow read: if isAllowed();
+      allow write: if isAdmin();
+    }
+
+    // Each signed-in person's display name — they can only write their own.
+    match /members/{uid} {
+      allow read: if isAllowed();
+      allow create, update: if isSignedIn() && isAllowed() && request.auth.uid == uid;
+      allow delete: if false;
+    }
+
+    // Issues (one flatplan per issue) — only the admin creates/deletes issues,
+    // any authorised team member can update issue-level fields if you add any later.
+    match /issues/{issueId} {
+      allow read: if isAllowed();
+      allow create, delete: if isAdmin();
+      allow update: if isAllowed();
+
+      // Pages within an issue — any authorised team member can edit.
+      match /pages/{pageId} {
+        allow read, write: if isAllowed();
+      }
+
+      // Who's currently viewing this issue — people can only write their own presence doc.
+      match /presence/{uid} {
+        allow read: if isAllowed();
+        allow write: if isSignedIn() && isAllowed() && request.auth.uid == uid;
+      }
+    }
+  }
+}
