@@ -203,7 +203,7 @@
   .page-card{
     width:180px;
     min-height:150px;
-    background:var(--card-bg);
+    background:color-mix(in srgb, var(--ct-color, transparent) 24%, var(--card-bg));
     border-radius:7px;
     padding:10px 11px 8px;
     position:relative;
@@ -212,13 +212,9 @@
     border:1px solid transparent;
     transition:background 0.12s, border-color 0.12s;
   }
-  .page-card:hover{background:var(--card-bg-hover);}
+  .page-card:hover{background:color-mix(in srgb, var(--ct-color, transparent) 24%, var(--card-bg-hover));}
   .page-card.dragging{opacity:0.4;}
   .page-card.drag-over{border-color:var(--accent);}
-  .page-card .ct-bar{
-    position:absolute;top:0;left:0;right:0;height:4px;
-    border-radius:7px 7px 0 0;
-  }
   .page-num{
     font-size:11px;color:var(--text-faint);font-weight:700;
     letter-spacing:0.04em;margin-bottom:6px;margin-top:2px;
@@ -823,8 +819,7 @@ function pageCardHtml(p){
   const title = p.title ? escapeHtml(p.title) : "Untitled";
   const titleClass = p.title ? "page-title" : "page-title untitled";
   return `
-    <div class="page-card" draggable="true" data-page-id="${p.id}">
-      <div class="ct-bar" style="background:${type.color}"></div>
+    <div class="page-card" draggable="true" data-page-id="${p.id}" style="--ct-color:${type.color}">
       <button class="edit-btn" data-open="${p.id}" title="Edit page">&#9998;</button>
       <div class="page-num">PAGE ${p.number}</div>
       <div class="${titleClass}">${title}</div>
