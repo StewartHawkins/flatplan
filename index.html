@@ -177,14 +177,17 @@
     flex:1;
     padding:24px;
     display:flex;
-    flex-direction:column;
+    flex-direction:row;
+    flex-wrap:wrap;
     gap:20px;
-    align-items:center;
+    align-content:flex-start;
+    justify-content:flex-start;
   }
   .empty-state{
+    width:100%;
     color:var(--text-dim);
     text-align:center;
-    margin-top:60px;
+    margin:60px auto 0;
     font-size:14px;
     max-width:360px;
     line-height:1.6;
