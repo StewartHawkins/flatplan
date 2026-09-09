@@ -480,9 +480,9 @@ const firebaseConfig = {
   appId: "1:173685670387:web:8cc573e1e534d6f1001286"
 };
 
-// The one address that is always authorised and can manage the team list
-// and create issues. Must match the admin email in your Firestore rules.
-const ADMIN_EMAIL = "stewart.hawkins@forbes.com.au";
+// Addresses that are always authorised and can manage the team list
+// and create issues. Must match the admin list in your Firestore rules.
+const ADMIN_EMAILS = ["stewart.hawkins@forbes.com.au", "jimhawkins.forbes@gmail.com"];
 
 const CONTENT_TYPES = {
   unassigned:  { label: "Unassigned",  color: "var(--ct-unassigned)" },
@@ -629,7 +629,7 @@ document.getElementById("nameForm").addEventListener("submit", async (e) => {
 
 async function checkAuthorization(user){
   const emailLower = user.email.toLowerCase();
-  isAdmin = emailLower === ADMIN_EMAIL.toLowerCase();
+  isAdmin = ADMIN_EMAILS.map(e => e.toLowerCase()).includes(emailLower);
   if (isAdmin) return ensureMemberProfile(user);
   try {
     const snap = await getDoc(doc(db, "allowlist", emailLower));
