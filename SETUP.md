@@ -42,12 +42,14 @@ Same process as your other single-file apps: create a repo (or a folder in an ex
 
 ## 5. Sign in as admin and invite the team
 
-1. Open the published site. Enter **your own email** (must match `ADMIN_EMAIL` exactly) and request a sign-in link.
-2. Click the link from your email — you'll land back in the app, be asked to set a display name, and then see the empty flatplan screen.
+1. Open the published site, tap **First time here? Create your password**, and enter **your own email** (must match `ADMIN_EMAIL` exactly) plus a password. If your email already has an account from the old sign-in-link days, type your email and tap **Forgot password?** instead — the email that arrives lets you set a password.
+2. You'll be asked to set a display name, then see the flatplan screen.
 3. Click **Team** in the header and add each operator's email address. They don't need a Google account or any software — just that email.
 4. Click **+ New issue**, give it a name and total page count, and you're in.
 
-Each operator then just visits the same link, enters their own email, clicks the link that arrives, sets their display name once, and they're editing — no InDesign, no license, no install.
+Each operator then just visits the same link, taps **First time here? Create your password**, enters their own email and a password, sets their display name once, and they're editing — no InDesign, no license, no install. Next time they just sign in with email and password.
+
+**Sign-in links are a fallback only.** The "Email me a sign-in link instead" option still works, but Firebase's free Spark plan only sends **5 sign-in-link emails per day** across the whole project. Password sign-in has no such limit, which is why it's the default. Password-reset emails allow 150 per day on the free plan.
 
 ## Notes on cost and limits
 

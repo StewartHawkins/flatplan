@@ -74,6 +74,7 @@
     line-height:1.5;
   }
   .auth-box input[type=email],
+  .auth-box input[type=password],
   .auth-box input[type=text]{
     width:100%;
     padding:11px 12px;
@@ -117,7 +118,11 @@
     margin:0 auto 16px;
   }
   @keyframes spin{to{transform:rotate(360deg);}}
-  .err-text{color:var(--danger);font-size:13px;margin-top:10px;min-height:1em;}
+  .err-text{color:var(--danger);font-size:13px;margin-top:10px;min-height:1em;line-height:1.45;}
+  .err-text.ok{color:var(--st-signedoff);}
+  .auth-links{display:flex;flex-direction:column;gap:9px;margin-top:14px;font-size:13px;}
+  .auth-links a{color:var(--accent);text-decoration:none;}
+  .auth-links a:hover{text-decoration:underline;}
 
   /* ---------- app shell ---------- */
   #appScreen{min-height:100vh;display:flex;flex-direction:column;}
@@ -227,7 +232,8 @@
     letter-spacing:0.08em;text-transform:uppercase;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
-  .page-card.type-unassigned .type-band{background:var(--border);color:var(--text-dim);}
+  .page-card.type-unassigned .type-band,
+  .half.type-unassigned .type-band{background:var(--border);color:var(--text-dim);}
   .page-card.type-unassigned .edit-btn{color:var(--text-dim);}
   .page-num{
     font-size:11px;color:rgba(255,255,255,0.7);font-weight:700;
@@ -260,8 +266,37 @@
   .page-card.type-unassigned .edit-btn:hover{background:rgba(255,255,255,0.08);color:var(--text);}
   .paste-btn{display:none;}
   body.has-clip .paste-btn{display:flex;}
-  body.has-clip .type-band{padding-right:76px;}
-  body.capturing .type-band{padding-right:11px;}
+  body.has-clip .page-card > .type-band{padding-right:76px;}
+  body.capturing .page-card > .type-band{padding-right:11px;}
+  /* broken space: half-page vertical split */
+  .page-card.split-card{padding:0;background:var(--card-bg);border-color:var(--border-light);}
+  .page-card.split-card:hover{background:var(--card-bg);}
+  .split-head{
+    display:flex;align-items:center;gap:6px;height:26px;padding:0 8px;
+    background:var(--border);
+  }
+  .split-head .page-num{margin:0;color:var(--text);}
+  .split-card .card-actions .edit-btn{color:var(--text-dim);}
+  .split-card .card-actions .edit-btn:hover{background:rgba(255,255,255,0.08);color:var(--text);}
+  .halves{display:grid;grid-template-columns:1fr 1fr;gap:2px;flex:1;background:var(--border-light);}
+  .half{
+    background:color-mix(in srgb, var(--ct-color) 46%, var(--card-bg));
+    padding:0 7px 8px;display:flex;flex-direction:column;min-width:0;
+  }
+  .half.type-unassigned{background:var(--card-bg);}
+  .half .type-band{margin:0 -7px 7px;padding:3px 7px;font-size:9px;letter-spacing:0.05em;}
+  .half .page-title{font-size:12.5px;}
+  .half .page-section{font-size:11px;margin-bottom:6px;}
+  .half .status-badge{font-size:9.5px;padding:2px 6px;margin-top:auto;white-space:nowrap;gap:4px;}
+  .split-foot{padding:4px 8px 6px;background:var(--card-bg);}
+  .split-tag{
+    font-size:9px;font-weight:700;letter-spacing:0.06em;color:var(--text-dim);
+    border:1px solid var(--border-light);border-radius:4px;padding:0 4px;
+  }
+  .sub-head{
+    font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);
+    margin:4px 0 10px;padding-top:10px;border-top:1px solid var(--border);
+  }
   .page-card.spread-card{width:363px;}
   .page-card.spread-card .page-title{font-size:15px;}
   .spread-tag{
@@ -366,12 +401,19 @@
   <div id="signinScreen" class="center-screen" hidden>
     <div class="auth-box">
       <h1>Flatplan</h1>
-      <p class="sub">Enter your email and we'll send you a sign-in link — no password needed.</p>
+      <p class="sub" id="signinSub">Sign in with your work email and password.</p>
       <form id="signinForm">
         <input type="email" id="signinEmail" placeholder="you@yourmagazine.com" required autocomplete="email">
-        <button type="submit" class="btn">Send me a sign-in link</button>
+        <input type="password" id="signinPassword" placeholder="Password" required minlength="6" autocomplete="current-password">
+        <input type="password" id="signinPassword2" placeholder="Confirm password" minlength="6" autocomplete="new-password" hidden>
+        <button type="submit" class="btn" id="signinSubmit">Sign in</button>
       </form>
       <p class="err-text" id="signinError"></p>
+      <div class="auth-links">
+        <a href="#" id="toggleModeLink">First time here? Create your password</a>
+        <a href="#" id="forgotLink">Forgot password?</a>
+        <a href="#" id="magicLinkLink">Email me a sign-in link instead</a>
+      </div>
     </div>
   </div>
 
@@ -446,6 +488,14 @@
           <span><span id="spreadLabel">Double-page spread</span>
             <small id="spreadHint">Merges the two facing pages into one wide card.</small></span>
         </label>
+        <div class="field" id="layoutField">
+          <label>Layout</label>
+          <select id="fLayout">
+            <option value="full">Full page</option>
+            <option value="halfV">Broken space — half page, vertical split</option>
+          </select>
+        </div>
+        <h3 class="sub-head" id="halfAHead" hidden>Left half</h3>
         <div class="field">
           <label>Headline / working title</label>
           <input type="text" id="fTitle" maxlength="120">
@@ -473,6 +523,28 @@
             <label>Photo credit</label>
             <input type="text" id="fPhotoCredit" maxlength="80">
           </div>
+        </div>
+        <div id="halfBBlock" hidden>
+          <h3 class="sub-head">Right half</h3>
+          <div class="field">
+            <label>Headline / working title</label>
+            <input type="text" id="fBTitle" maxlength="120">
+          </div>
+          <div class="field">
+            <label>Section / advertiser</label>
+            <input type="text" id="fBSection" maxlength="60">
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>Content type</label>
+              <select id="fBType"></select>
+            </div>
+            <div class="field">
+              <label>Status</label>
+              <select id="fBStatus"></select>
+            </div>
+          </div>
+          <h3 class="sub-head">Whole page</h3>
         </div>
         <div class="field">
           <label>Notes</label>
@@ -526,7 +598,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getAuth, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink,
-  onAuthStateChanged, signOut
+  onAuthStateChanged, signOut, signInWithEmailAndPassword,
+  createUserWithEmailAndPassword, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc,
@@ -657,16 +730,97 @@ async function handleEmailLinkIfPresent(){
   }
 }
 
+/* ---------- email + password sign-in (magic link kept as a fallback) ---------- */
+let signinMode = "signin"; // "signin" | "create"
+
+function setSigninMsg(msg, ok){
+  const el = document.getElementById("signinError");
+  el.textContent = msg || "";
+  el.classList.toggle("ok", !!ok);
+}
+
+function setSigninMode(mode){
+  signinMode = mode;
+  const creating = mode === "create";
+  const pw2 = document.getElementById("signinPassword2");
+  pw2.hidden = !creating;
+  pw2.required = creating;
+  document.getElementById("signinPassword").autocomplete = creating ? "new-password" : "current-password";
+  document.getElementById("signinSubmit").textContent = creating ? "Create password & sign in" : "Sign in";
+  document.getElementById("signinSub").textContent = creating
+    ? "Choose a password (at least 6 characters). You'll need to be on the team list to see the flatplan."
+    : "Sign in with your work email and password.";
+  document.getElementById("toggleModeLink").textContent = creating
+    ? "Already set a password? Sign in"
+    : "First time here? Create your password";
+  setSigninMsg("");
+}
+
+function friendlyAuthError(err){
+  const code = err && err.code || "";
+  if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found")
+    return "Wrong email or password. First time here? Use “Create your password” below.";
+  if (code === "auth/email-already-in-use")
+    return "That email already has an account. Sign in instead — or use “Forgot password?” if you've never set one.";
+  if (code === "auth/weak-password") return "Password needs to be at least 6 characters.";
+  if (code === "auth/invalid-email") return "That doesn't look like a valid email address.";
+  if (code === "auth/too-many-requests") return "Too many attempts. Wait a few minutes and try again.";
+  if (code === "auth/operation-not-allowed")
+    return "Email/password sign-in isn't switched on yet. The admin needs to enable it in Firebase (see SETUP.md).";
+  if (code === "auth/quota-exceeded")
+    return "Today's free email limit has been reached. Try again tomorrow, or sign in with your password.";
+  return "Something went wrong. Check your details and try again.";
+}
+
+document.getElementById("toggleModeLink").addEventListener("click", (e) => {
+  e.preventDefault();
+  setSigninMode(signinMode === "create" ? "signin" : "create");
+});
+
 document.getElementById("signinForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const email = document.getElementById("signinEmail").value.trim();
-  const errEl = document.getElementById("signinError");
-  errEl.textContent = "";
-  const btn = e.target.querySelector("button");
+  const pw = document.getElementById("signinPassword").value;
+  setSigninMsg("");
+  if (signinMode === "create" && pw !== document.getElementById("signinPassword2").value) {
+    setSigninMsg("The two passwords don't match.");
+    return;
+  }
+  const btn = document.getElementById("signinSubmit");
   btn.disabled = true;
   try {
+    if (signinMode === "create") await createUserWithEmailAndPassword(auth, email, pw);
+    else await signInWithEmailAndPassword(auth, email, pw);
+    document.getElementById("signinPassword").value = "";
+    document.getElementById("signinPassword2").value = "";
+  } catch (err) {
+    console.error(err);
+    setSigninMsg(friendlyAuthError(err));
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById("forgotLink").addEventListener("click", async (e) => {
+  e.preventDefault();
+  const email = document.getElementById("signinEmail").value.trim();
+  if (!email) { setSigninMsg("Type your email address above first, then tap “Forgot password?”."); return; }
+  try {
+    await sendPasswordResetEmail(auth, email, { url: window.location.origin + window.location.pathname });
+    setSigninMsg(`If ${email} has an account, a link to set a new password is on its way. Check junk mail too.`, true);
+  } catch (err) {
+    console.error(err);
+    setSigninMsg(friendlyAuthError(err));
+  }
+});
+
+document.getElementById("magicLinkLink").addEventListener("click", async (e) => {
+  e.preventDefault();
+  const email = document.getElementById("signinEmail").value.trim();
+  if (!email) { setSigninMsg("Type your email address above first, then tap “Email me a sign-in link”."); return; }
+  try {
     await sendSignInLinkToEmail(auth, email, {
-      url: window.location.href,
+      url: window.location.origin + window.location.pathname,
       handleCodeInApp: true
     });
     window.localStorage.setItem("flatplanEmail", email);
@@ -674,9 +828,9 @@ document.getElementById("signinForm").addEventListener("submit", async (e) => {
     show("checkEmailScreen");
   } catch (err) {
     console.error(err);
-    errEl.textContent = "Couldn't send the link. Check the email address and try again.";
-  } finally {
-    btn.disabled = false;
+    setSigninMsg(err && err.code === "auth/quota-exceeded"
+      ? "Today's free sign-in email limit has been reached. Use your password instead, or try again tomorrow."
+      : friendlyAuthError(err));
   }
 });
 
@@ -882,7 +1036,41 @@ function buildSpreads(pages){
   return spreads;
 }
 
+function halfHtml(title, section, typeKey, statusKey, extraTop){
+  const type = CONTENT_TYPES[typeKey] || CONTENT_TYPES.unassigned;
+  const status = STATUSES[statusKey] || STATUSES.planned;
+  return `
+    <div class="half type-${escapeHtml(typeKey || "unassigned")}" style="--ct-color:${type.color}">
+      <div class="type-band">${escapeHtml(type.label)}</div>
+      <div class="${title ? "page-title" : "page-title untitled"}">${title ? escapeHtml(title) : "Untitled"}</div>
+      ${section ? `<div class="page-section">${escapeHtml(section)}</div>` : ""}
+      <span class="status-badge" style="color:${status.color};border:1.5px solid ${status.color}">
+        <span class="dot" style="background:${status.color}"></span>${escapeHtml(status.label)}
+      </span>
+    </div>`;
+}
+
+function splitCardHtml(p){
+  return `
+    <div class="page-card split-card" draggable="true" data-page-id="${p.id}">
+      <div class="split-head">
+        <div class="page-num">PAGE ${p.number}</div><span class="split-tag">½ + ½</span>
+      </div>
+      <div class="card-actions">
+        <button class="edit-btn paste-btn" data-paste="${p.id}" title="Paste copied page here">&#128203;</button>
+        <button class="edit-btn" data-copy="${p.id}" title="Copy page">&#10697;</button>
+        <button class="edit-btn" data-open="${p.id}" title="Edit page">&#9998;</button>
+      </div>
+      <div class="halves">
+        ${halfHtml(p.title, p.section, p.contentType, p.status)}
+        ${halfHtml(p.bTitle, p.bSection, p.bContentType, p.bStatus)}
+      </div>
+      ${p.lastEditedBy ? `<div class="split-foot"><span class="edited-caption">Edited by ${escapeHtml(p.lastEditedBy)} · ${timeAgo(p.lastEditedAt)}</span></div>` : ""}
+    </div>`;
+}
+
 function pageCardHtml(p, recto){
+  if (!recto && p.layout === "halfV") return splitCardHtml(p);
   const type = CONTENT_TYPES[p.contentType] || CONTENT_TYPES.unassigned;
   const isSpread = !!recto;
   const status = STATUSES[p.status] || STATUSES.planned;
@@ -967,7 +1155,8 @@ function renderGrid(pages){
   });
 }
 
-const CONTENT_FIELDS = ["title", "section", "contentType", "status", "notes", "wordCount", "photoCredit"];
+const CONTENT_FIELDS = ["title", "section", "contentType", "status", "notes", "wordCount", "photoCredit",
+  "layout", "bTitle", "bSection", "bContentType", "bStatus"];
 let pairIndex = {};
 
 function isMergedSpread(pageId){
@@ -1057,7 +1246,7 @@ async function pastePage(pageId){
   if (!pageClipboard || !currentIssueId) return;
   const p = currentPages.find(x => x.id === pageId);
   if (!p) return;
-  const hasContent = p.title || (p.contentType && p.contentType !== "unassigned") || p.notes;
+  const hasContent = p.title || p.bTitle || (p.contentType && p.contentType !== "unassigned") || p.notes;
   if (hasContent && !window.confirm(`Replace what's on page ${p.number}${p.title ? " (“" + p.title + "”)" : ""} with the copied page?`)) return;
   await updateDoc(doc(db, "issues", currentIssueId, "pages", pageId), {
     ...pageClipboard.data,
@@ -1112,11 +1301,29 @@ function openDetail(pageId){
     .map(([k, v]) => `<option value="${k}" ${k === p.contentType ? "selected" : ""}>${escapeHtml(v.label)}</option>`).join("");
   document.getElementById("fStatus").innerHTML = Object.entries(STATUSES)
     .map(([k, v]) => `<option value="${k}" ${k === p.status ? "selected" : ""}>${escapeHtml(v.label)}</option>`).join("");
+  document.getElementById("fLayout").value = p.layout === "halfV" ? "halfV" : "full";
+  document.getElementById("fBTitle").value = p.bTitle || "";
+  document.getElementById("fBSection").value = p.bSection || "";
+  document.getElementById("fBType").innerHTML = Object.entries(CONTENT_TYPES)
+    .map(([k, v]) => `<option value="${k}" ${k === (p.bContentType || "unassigned") ? "selected" : ""}>${escapeHtml(v.label)}</option>`).join("");
+  document.getElementById("fBStatus").innerHTML = Object.entries(STATUSES)
+    .map(([k, v]) => `<option value="${k}" ${k === (p.bStatus || "planned") ? "selected" : ""}>${escapeHtml(v.label)}</option>`).join("");
+  syncLayoutUI();
   document.getElementById("fWordCount").value = p.wordCount ?? "";
   document.getElementById("fPhotoCredit").value = p.photoCredit || "";
   document.getElementById("fNotes").value = p.notes || "";
   document.getElementById("detailOverlay").hidden = false;
 }
+function syncLayoutUI(){
+  const spread = !document.getElementById("spreadField").hidden && document.getElementById("fSpread").checked;
+  document.getElementById("layoutField").hidden = spread;
+  const split = !spread && document.getElementById("fLayout").value === "halfV";
+  document.getElementById("halfAHead").hidden = !split;
+  document.getElementById("halfBBlock").hidden = !split;
+}
+document.getElementById("fLayout").addEventListener("change", syncLayoutUI);
+document.getElementById("fSpread").addEventListener("change", syncLayoutUI);
+
 document.getElementById("detailClose").addEventListener("click", () => {
   document.getElementById("detailOverlay").hidden = true;
 });
@@ -1141,6 +1348,11 @@ document.getElementById("detailForm").addEventListener("submit", async (e) => {
     wordCount: wc === "" ? null : parseInt(wc, 10),
     photoCredit: document.getElementById("fPhotoCredit").value.trim(),
     notes: document.getElementById("fNotes").value.trim(),
+    layout: wantSpread ? "full" : document.getElementById("fLayout").value,
+    bTitle: document.getElementById("fBTitle").value.trim(),
+    bSection: document.getElementById("fBSection").value.trim(),
+    bContentType: document.getElementById("fBType").value,
+    bStatus: document.getElementById("fBStatus").value,
     lastEditedBy: currentUserName,
     lastEditedAt: serverTimestamp()
   });
