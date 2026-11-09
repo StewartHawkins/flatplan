@@ -21,15 +21,16 @@
     --accent-dim:#a97f34;
     --danger:#d9694a;
     --radius:10px;
-    --ct-editorial:#5b8def;
-    --ct-advertising:#4caf7d;
-    --ct-promotion:#b47fe0;
-    --ct-column:#e0a640;
-    --ct-unassigned:#4a5568;
-    --st-planned:#6b7684;
-    --st-drafted:#5b8def;
-    --st-subbed:#e0a640;
-    --st-signedoff:#4caf7d;
+    /* content types: bold, saturated so sections read at a glance */
+    --ct-editorial:#2f7bff;
+    --ct-advertising:#16c26a;
+    --ct-promotion:#b453ff;
+    --ct-column:#ffa514;
+    --ct-unassigned:#3a4352;
+    --st-planned:#8a96a6;
+    --st-drafted:#4d93ff;
+    --st-subbed:#ffb02e;
+    --st-signedoff:#2bd47d;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -161,16 +162,16 @@
   .user-name{font-size:13px;color:var(--text-dim);}
 
   .legend{
-    display:flex;flex-wrap:wrap;gap:14px;
+    display:flex;flex-wrap:wrap;gap:14px 22px;
     padding:10px 20px;
     background:var(--bg);
     border-bottom:1px solid var(--border);
-    font-size:12px;
-    color:var(--text-dim);
+    font-size:12.5px;
+    color:var(--text);
   }
   .legend-group{display:flex;align-items:center;gap:8px;}
   .legend-item{display:flex;align-items:center;gap:5px;}
-  .swatch{width:10px;height:10px;border-radius:3px;display:inline-block;}
+  .swatch{width:14px;height:14px;border-radius:4px;display:inline-block;}
   .dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
 
   #gridContainer{
@@ -203,20 +204,33 @@
   .page-card{
     width:180px;
     min-height:150px;
-    background:color-mix(in srgb, var(--ct-color, transparent) 24%, var(--card-bg));
+    background:color-mix(in srgb, var(--ct-color, transparent) 46%, var(--card-bg));
     border-radius:7px;
-    padding:10px 11px 8px;
+    padding:0 11px 8px;
     position:relative;
     display:flex;
     flex-direction:column;
-    border:1px solid transparent;
+    border:2px solid var(--ct-color, transparent);
+    overflow:hidden;
     transition:background 0.12s, border-color 0.12s;
   }
-  .page-card:hover{background:color-mix(in srgb, var(--ct-color, transparent) 24%, var(--card-bg-hover));}
+  .page-card:hover{background:color-mix(in srgb, var(--ct-color, transparent) 56%, var(--card-bg-hover));}
+  .page-card.type-unassigned{background:var(--card-bg);border-color:var(--border-light);}
   .page-card.dragging{opacity:0.4;}
-  .page-card.drag-over{border-color:var(--accent);}
+  .page-card.drag-over{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent);}
+  .type-band{
+    margin:0 -11px 8px;
+    padding:4px 30px 4px 11px;
+    background:var(--ct-color);
+    color:#0b0f15;
+    font-size:10px;font-weight:800;
+    letter-spacing:0.08em;text-transform:uppercase;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .page-card.type-unassigned .type-band{background:var(--border);color:var(--text-dim);}
+  .page-card.type-unassigned .edit-btn{color:var(--text-dim);}
   .page-num{
-    font-size:11px;color:var(--text-faint);font-weight:700;
+    font-size:11px;color:rgba(255,255,255,0.7);font-weight:700;
     letter-spacing:0.04em;margin-bottom:6px;margin-top:2px;
   }
   .page-title{
@@ -224,23 +238,31 @@
     margin-bottom:4px;word-break:break-word;
   }
   .page-title.untitled{color:var(--text-faint);font-weight:400;font-style:italic;}
-  .page-section{font-size:11.5px;color:var(--text-dim);margin-bottom:8px;}
+  .page-section{font-size:11.5px;color:rgba(255,255,255,0.78);margin-bottom:8px;}
   .page-card-foot{margin-top:auto;display:flex;flex-direction:column;gap:6px;}
   .status-badge{
     display:inline-flex;align-items:center;gap:5px;
     font-size:10.5px;font-weight:600;padding:3px 8px;
     border-radius:20px;width:fit-content;
-    background:rgba(255,255,255,0.06);
+    background:rgba(8,10,14,0.55);
   }
-  .edited-caption{font-size:10px;color:var(--text-faint);}
+  .edited-caption{font-size:10px;color:rgba(255,255,255,0.6);}
   .edit-btn{
-    position:absolute;top:6px;right:6px;
+    position:absolute;top:1px;right:3px;
     width:22px;height:22px;border-radius:6px;
-    background:transparent;border:none;color:var(--text-faint);
+    background:transparent;border:none;color:#0b0f15;
     display:flex;align-items:center;justify-content:center;
     font-size:13px;
   }
   .edit-btn:hover{background:rgba(255,255,255,0.08);color:var(--text);}
+
+  /* ---------- screenshot export ---------- */
+  #captureArea{flex:1;display:flex;flex-direction:column;background:var(--bg);}
+  .capture-title{display:none;padding:18px 24px 4px;}
+  .capture-title h2{margin:0;font-size:20px;color:var(--accent);letter-spacing:0.02em;}
+  .capture-title p{margin:4px 0 0;font-size:12px;color:var(--text-dim);}
+  body.capturing .capture-title{display:block;}
+  body.capturing .edit-btn{display:none;}
 
   /* ---------- side panel ---------- */
   .overlay{
@@ -360,15 +382,19 @@
       <div class="presence-row" id="presenceRow"></div>
       <div class="header-right">
         <span class="user-name" id="currentUserLabel"></span>
+        <button class="btn small secondary" id="screenshotBtn" title="Download the current flatplan as a PNG image">&#128247; Download PNG</button>
         <button class="btn small secondary" id="adminBtn" hidden>Team</button>
         <button class="btn small secondary" id="signOutBtn">Sign out</button>
       </div>
     </header>
-    <div class="legend">
-      <div class="legend-group" id="legendTypes"></div>
-      <div class="legend-group" id="legendStatuses"></div>
+    <div id="captureArea">
+      <div class="capture-title"><h2 id="captureIssueName"></h2><p id="captureMeta"></p></div>
+      <div class="legend">
+        <div class="legend-group" id="legendTypes"></div>
+        <div class="legend-group" id="legendStatuses"></div>
+      </div>
+      <div id="gridContainer"></div>
     </div>
-    <div id="gridContainer"></div>
   </div>
 
   <div id="detailOverlay" class="overlay" hidden>
@@ -819,13 +845,14 @@ function pageCardHtml(p){
   const title = p.title ? escapeHtml(p.title) : "Untitled";
   const titleClass = p.title ? "page-title" : "page-title untitled";
   return `
-    <div class="page-card" draggable="true" data-page-id="${p.id}" style="--ct-color:${type.color}">
+    <div class="page-card type-${escapeHtml(p.contentType || "unassigned")}" draggable="true" data-page-id="${p.id}" style="--ct-color:${type.color}">
+      <div class="type-band">${escapeHtml(type.label)}</div>
       <button class="edit-btn" data-open="${p.id}" title="Edit page">&#9998;</button>
       <div class="page-num">PAGE ${p.number}</div>
       <div class="${titleClass}">${title}</div>
       ${p.section ? `<div class="page-section">${escapeHtml(p.section)}</div>` : ""}
       <div class="page-card-foot">
-        <span class="status-badge" style="color:${status.color};border:1px solid ${status.color}">
+        <span class="status-badge" style="color:${status.color};border:1.5px solid ${status.color}">
           <span class="dot" style="background:${status.color}"></span>${escapeHtml(status.label)}
         </span>
         ${p.lastEditedBy ? `<span class="edited-caption">Edited by ${escapeHtml(p.lastEditedBy)} · ${timeAgo(p.lastEditedAt)}</span>` : ""}
@@ -933,6 +960,50 @@ document.getElementById("detailForm").addEventListener("submit", async (e) => {
   });
   document.getElementById("detailOverlay").hidden = true;
   toast("Saved");
+});
+
+/* ============================= SCREENSHOT ============================= */
+
+let htmlToImage = null;
+document.getElementById("screenshotBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("screenshotBtn");
+  if (!currentIssueId || currentPages.length === 0) { toast("Nothing to capture yet"); return; }
+  const issueName = document.getElementById("issueSelect").selectedOptions[0]?.textContent || "Flatplan";
+  btn.disabled = true;
+  const original = btn.innerHTML;
+  btn.textContent = "Capturing…";
+  try {
+    if (!htmlToImage) {
+      htmlToImage = await import("https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/+esm");
+    }
+    document.getElementById("captureIssueName").textContent = issueName;
+    document.getElementById("captureMeta").textContent =
+      `${currentPages.length} pages · exported ${new Date().toLocaleString("en-AU", { dateStyle: "medium", timeStyle: "short" })} by ${currentUserName}`;
+    document.body.classList.add("capturing");
+    const area = document.getElementById("captureArea");
+    const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || "#10141a";
+    const dataUrl = await htmlToImage.toPng(area, {
+      backgroundColor: bg,
+      pixelRatio: Math.max(2, window.devicePixelRatio || 1),
+      width: area.scrollWidth,
+      height: area.scrollHeight
+    });
+    const a = document.createElement("a");
+    const safe = issueName.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "flatplan";
+    a.href = dataUrl;
+    a.download = `flatplan-${safe}-${new Date().toISOString().slice(0, 10)}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    toast("Screenshot downloaded");
+  } catch (err) {
+    console.error(err);
+    toast("Couldn't capture the screenshot — try again");
+  } finally {
+    document.body.classList.remove("capturing");
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }
 });
 
 /* ============================= PRESENCE ============================= */
