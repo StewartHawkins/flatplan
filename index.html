@@ -174,7 +174,7 @@
     font-size:12.5px;
     color:var(--text);
   }
-  .legend-group{display:flex;align-items:center;gap:8px;}
+  .legend-group{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;}
   .legend-item{display:flex;align-items:center;gap:5px;}
   .swatch{width:14px;height:14px;border-radius:4px;display:inline-block;}
   .dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
@@ -293,6 +293,18 @@
     font-size:9px;font-weight:700;letter-spacing:0.06em;color:var(--text-dim);
     border:1px solid var(--border-light);border-radius:4px;padding:0 4px;
   }
+  #halvesWrap{display:flex;flex-direction:column;gap:12px;}
+  #halvesWrap.split #halfABlock,
+  #halvesWrap.split #halfBBlock{
+    border:1px solid var(--border-light);border-left:5px solid var(--half-color, var(--border-light));
+    border-radius:8px;padding:10px 12px 0;
+    background:color-mix(in srgb, var(--half-color, transparent) 10%, transparent);
+  }
+  .half-head{
+    font-size:12px;text-transform:uppercase;letter-spacing:0.08em;
+    margin:0 0 10px;color:var(--text);
+  }
+  .half-head small{color:var(--text-dim);font-weight:400;letter-spacing:0;text-transform:none;font-size:11.5px;}
   .sub-head{
     font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);
     margin:4px 0 10px;padding-top:10px;border-top:1px solid var(--border);
@@ -496,25 +508,51 @@
             <option value="halfV">Broken space — half page, vertical split</option>
           </select>
         </div>
-        <h3 class="sub-head" id="halfAHead" hidden>Left half</h3>
-        <div class="field">
-          <label>Headline / working title</label>
-          <input type="text" id="fTitle" maxlength="120">
-        </div>
-        <div class="field">
-          <label>Section</label>
-          <input type="text" id="fSection" maxlength="60" placeholder="e.g. Markets, Profile, Front of book">
-        </div>
-        <div class="row">
-          <div class="field">
-            <label>Content type</label>
-            <select id="fType"></select>
+        <div id="halvesWrap">
+          <div id="halfABlock">
+            <h3 class="half-head" id="halfAHead" hidden>Left half</h3>
+            <div class="field">
+              <label>Headline / working title</label>
+              <input type="text" id="fTitle" maxlength="120">
+            </div>
+            <div class="field">
+              <label>Section / advertiser</label>
+              <input type="text" id="fSection" maxlength="60" placeholder="e.g. Markets, Profile, Front of book">
+            </div>
+            <div class="row">
+              <div class="field">
+                <label>Content type</label>
+                <select id="fType"></select>
+              </div>
+              <div class="field">
+                <label>Status</label>
+                <select id="fStatus"></select>
+              </div>
+            </div>
           </div>
-          <div class="field">
-            <label>Status</label>
-            <select id="fStatus"></select>
+          <div id="halfBBlock" hidden>
+            <h3 class="half-head" id="halfBHead">Right half</h3>
+            <div class="field">
+              <label>Headline / working title</label>
+              <input type="text" id="fBTitle" maxlength="120">
+            </div>
+            <div class="field">
+              <label>Section / advertiser</label>
+              <input type="text" id="fBSection" maxlength="60">
+            </div>
+            <div class="row">
+              <div class="field">
+                <label>Content type</label>
+                <select id="fBType"></select>
+              </div>
+              <div class="field">
+                <label>Status</label>
+                <select id="fBStatus"></select>
+              </div>
+            </div>
           </div>
         </div>
+        <h3 class="sub-head" id="wholePageHead" hidden>Whole page</h3>
         <div class="row">
           <div class="field">
             <label>Word count</label>
@@ -524,28 +562,6 @@
             <label>Photo credit</label>
             <input type="text" id="fPhotoCredit" maxlength="80">
           </div>
-        </div>
-        <div id="halfBBlock" hidden>
-          <h3 class="sub-head" id="halfBHead">Right half</h3>
-          <div class="field">
-            <label>Headline / working title</label>
-            <input type="text" id="fBTitle" maxlength="120">
-          </div>
-          <div class="field">
-            <label>Section / advertiser</label>
-            <input type="text" id="fBSection" maxlength="60">
-          </div>
-          <div class="row">
-            <div class="field">
-              <label>Content type</label>
-              <select id="fBType"></select>
-            </div>
-            <div class="field">
-              <label>Status</label>
-              <select id="fBStatus"></select>
-            </div>
-          </div>
-          <h3 class="sub-head">Whole page</h3>
         </div>
         <div class="field">
           <label>Notes</label>
@@ -1527,16 +1543,37 @@ function syncLayoutUI(){
   const spread = !document.getElementById("spreadField").hidden && document.getElementById("fSpread").checked;
   document.getElementById("layoutField").hidden = spread;
   const split = !spread && document.getElementById("fLayout").value === "halfV";
+  const aType = document.getElementById("fType").value;
+  const bType = document.getElementById("fBType").value;
+  const wrap = document.getElementById("halvesWrap");
+  wrap.classList.toggle("split", split);
   document.getElementById("halfAHead").hidden = !split;
   document.getElementById("halfBBlock").hidden = !split;
-  const swapped = adOnFirstHalf(document.getElementById("fType").value, document.getElementById("fBType").value);
-  document.getElementById("halfAHead").textContent = swapped ? "Right half (ad)" : "Left half";
-  document.getElementById("halfBHead").textContent = swapped ? "Left half" : "Right half";
+  document.getElementById("wholePageHead").hidden = !split;
+  // Show the halves in the same order they sit on the page (ads always on the right).
+  const swapped = split && adOnFirstHalf(aType, bType);
+  document.getElementById("halfABlock").style.order = swapped ? 2 : 1;
+  document.getElementById("halfBBlock").style.order = swapped ? 1 : 2;
+  const label = (side, t) => `${side} half <small>· ${escapeHtml((CONTENT_TYPES[t] || CONTENT_TYPES.unassigned).label)}</small>`;
+  document.getElementById("halfAHead").innerHTML = label(swapped ? "Right" : "Left", aType);
+  document.getElementById("halfBHead").innerHTML = label(swapped ? "Left" : "Right", bType);
+  document.getElementById("halfABlock").style.setProperty("--half-color", (CONTENT_TYPES[aType] || CONTENT_TYPES.unassigned).color);
+  document.getElementById("halfBBlock").style.setProperty("--half-color", (CONTENT_TYPES[bType] || CONTENT_TYPES.unassigned).color);
 }
+document.getElementById("fLayout").addEventListener("change", () => {
+  // When a page is first split, give the empty half the opposite type:
+  // an ad page gets an editorial half, anything else gets an ad half.
+  const bTypeEl = document.getElementById("fBType");
+  if (document.getElementById("fLayout").value === "halfV" && bTypeEl.value === "unassigned"
+      && !document.getElementById("fBTitle").value.trim()) {
+    bTypeEl.value = document.getElementById("fType").value === "advertising" ? "editorial" : "advertising";
+  }
+  syncLayoutUI();
+});
+
+document.getElementById("fSpread").addEventListener("change", syncLayoutUI);
 document.getElementById("fType").addEventListener("change", syncLayoutUI);
 document.getElementById("fBType").addEventListener("change", syncLayoutUI);
-document.getElementById("fLayout").addEventListener("change", syncLayoutUI);
-document.getElementById("fSpread").addEventListener("change", syncLayoutUI);
 
 document.getElementById("detailClose").addEventListener("click", () => {
   document.getElementById("detailOverlay").hidden = true;
