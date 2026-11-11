@@ -25,6 +25,7 @@
     --ct-editorial:#2f7bff;
     --ct-advertising:#16c26a;
     --ct-promotion:#b453ff;
+    --ct-housead:#ff4fa3;
     --ct-column:#ffa514;
     --ct-unassigned:#3a4352;
     --st-planned:#8a96a6;
@@ -691,7 +692,8 @@ const CONTENT_TYPES = {
   unassigned:  { label: "Unassigned",  color: "var(--ct-unassigned)" },
   editorial:   { label: "Editorial",   color: "var(--ct-editorial)" },
   advertising: { label: "Advertising", color: "var(--ct-advertising)" },
-  promotion:   { label: "Promotion",   color: "var(--ct-promotion)" },
+  houseAd:     { label: "House Ad",    color: "var(--ct-housead)" },
+  promotion:   { label: "Brand Voice", color: "var(--ct-promotion)" },
   column:      { label: "Regular column", color: "var(--ct-column)" }
 };
 
@@ -1267,8 +1269,9 @@ function halfHtml(title, section, typeKey, statusKey, extraTop){
     </div>`;
 }
 
+const AD_TYPES = ["advertising", "houseAd"];
 function adOnFirstHalf(aType, bType){
-  return aType === "advertising" && bType !== "advertising";
+  return AD_TYPES.includes(aType) && !AD_TYPES.includes(bType);
 }
 
 function splitCardHtml(p){
@@ -1566,7 +1569,7 @@ document.getElementById("fLayout").addEventListener("change", () => {
   const bTypeEl = document.getElementById("fBType");
   if (document.getElementById("fLayout").value === "halfV" && bTypeEl.value === "unassigned"
       && !document.getElementById("fBTitle").value.trim()) {
-    bTypeEl.value = document.getElementById("fType").value === "advertising" ? "editorial" : "advertising";
+    bTypeEl.value = AD_TYPES.includes(document.getElementById("fType").value) ? "editorial" : "advertising";
   }
   syncLayoutUI();
 });
