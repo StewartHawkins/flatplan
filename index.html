@@ -27,7 +27,8 @@
     --ct-promotion:#b453ff;
     --ct-housead:#ff4fa3;
     --ct-column:#38d4ff;      /* Editorial Features: bright sky blue */
-    --ct-forbeslife:#7fa4ff;  /* Editorial Forbes Life: soft periwinkle blue */
+    --ct-forbeslife:#7fa4ff;
+    --ct-international:#2343c9; /* International Editorial: deep navy-cobalt */  /* Editorial Forbes Life: soft periwinkle blue */
     --ct-unassigned:#3a4352;
     --st-planned:#8a96a6;
     --st-drafted:#4d93ff;
@@ -265,6 +266,7 @@
   .edit-btn:hover{background:rgba(0,0,0,0.18);}
   .card-actions{position:absolute;top:1px;right:3px;display:flex;gap:1px;}
   .card-actions .edit-btn{position:static;}
+  .page-card.type-international > .card-actions .edit-btn{color:#fff;}
   .page-card.type-unassigned .edit-btn:hover{background:rgba(255,255,255,0.08);color:var(--text);}
   .paste-btn{display:none;}
   body.has-clip .paste-btn{display:flex;}
@@ -701,6 +703,7 @@ const CONTENT_TYPES = {
   editorial:   { label: "Editorial",   color: "var(--ct-editorial)" },
   column:      { label: "Editorial Features", short: "Features", color: "var(--ct-column)" },
   forbesLife:  { label: "Editorial Forbes Life", short: "Forbes Life", color: "var(--ct-forbeslife)" },
+  international: { label: "International Editorial", short: "International", color: "var(--ct-international)", ink: "#ffffff" },
   advertising: { label: "Advertising", color: "var(--ct-advertising)" },
   houseAd:     { label: "House Ad",    color: "var(--ct-housead)" },
   promotion:   { label: "Brand Voice", color: "var(--ct-promotion)" }
@@ -1269,7 +1272,7 @@ function halfHtml(title, section, typeKey, statusKey, wc){
   const status = STATUSES[statusKey] || STATUSES.planned;
   return `
     <div class="half type-${escapeHtml(typeKey || "unassigned")}" style="--ct-color:${type.color}">
-      <div class="type-band" title="${escapeHtml(type.label)}">${escapeHtml(type.short || type.label)}</div>
+      <div class="type-band" title="${escapeHtml(type.label)}"${type.ink ? ` style="color:${type.ink}"` : ""}>${escapeHtml(type.short || type.label)}</div>
       <div class="${title ? "page-title" : "page-title untitled"}">${title ? escapeHtml(title) : "Untitled"}</div>
       ${section ? `<div class="page-section">${escapeHtml(section)}</div>` : ""}
       ${wc ? wordCountHtml(wc, true) : ""}
@@ -1327,7 +1330,7 @@ function pageCardHtml(p, recto){
   const titleClass = p.title ? "page-title" : "page-title untitled";
   return `
     <div class="page-card type-${escapeHtml(p.contentType || "unassigned")}${isSpread ? " spread-card" : ""}" draggable="true" data-page-id="${p.id}" style="--ct-color:${type.color}">
-      <div class="type-band" title="${escapeHtml(type.label)}">${escapeHtml(type.short || type.label)}</div>
+      <div class="type-band" title="${escapeHtml(type.label)}"${type.ink ? ` style="color:${type.ink}"` : ""}>${escapeHtml(type.short || type.label)}</div>
       <div class="card-actions">
         <button class="edit-btn paste-btn" data-paste="${p.id}" title="Paste copied page here">&#128203;</button>
         <button class="edit-btn" data-copy="${p.id}" title="Copy page">&#10697;</button>
