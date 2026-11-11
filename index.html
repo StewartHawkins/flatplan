@@ -525,7 +525,7 @@
           </div>
         </div>
         <div id="halfBBlock" hidden>
-          <h3 class="sub-head">Right half</h3>
+          <h3 class="sub-head" id="halfBHead">Right half</h3>
           <div class="field">
             <label>Headline / working title</label>
             <input type="text" id="fBTitle" maxlength="120">
@@ -1050,6 +1050,10 @@ function halfHtml(title, section, typeKey, statusKey, extraTop){
     </div>`;
 }
 
+function adOnFirstHalf(aType, bType){
+  return aType === "advertising" && bType !== "advertising";
+}
+
 function splitCardHtml(p){
   return `
     <div class="page-card split-card" draggable="true" data-page-id="${p.id}">
@@ -1062,8 +1066,12 @@ function splitCardHtml(p){
         <button class="edit-btn" data-open="${p.id}" title="Edit page">&#9998;</button>
       </div>
       <div class="halves">
-        ${halfHtml(p.title, p.section, p.contentType, p.status)}
-        ${halfHtml(p.bTitle, p.bSection, p.bContentType, p.bStatus)}
+        ${(() => {
+          const a = halfHtml(p.title, p.section, p.contentType, p.status);
+          const b = halfHtml(p.bTitle, p.bSection, p.bContentType, p.bStatus);
+          // Broken-space ads always sit on the right-hand side of the page.
+          return adOnFirstHalf(p.contentType, p.bContentType) ? b + a : a + b;
+        })()}
       </div>
       ${p.lastEditedBy ? `<div class="split-foot"><span class="edited-caption">Edited by ${escapeHtml(p.lastEditedBy)} · ${timeAgo(p.lastEditedAt)}</span></div>` : ""}
     </div>`;
@@ -1320,7 +1328,12 @@ function syncLayoutUI(){
   const split = !spread && document.getElementById("fLayout").value === "halfV";
   document.getElementById("halfAHead").hidden = !split;
   document.getElementById("halfBBlock").hidden = !split;
+  const swapped = adOnFirstHalf(document.getElementById("fType").value, document.getElementById("fBType").value);
+  document.getElementById("halfAHead").textContent = swapped ? "Right half (ad)" : "Left half";
+  document.getElementById("halfBHead").textContent = swapped ? "Left half" : "Right half";
 }
+document.getElementById("fType").addEventListener("change", syncLayoutUI);
+document.getElementById("fBType").addEventListener("change", syncLayoutUI);
 document.getElementById("fLayout").addEventListener("change", syncLayoutUI);
 document.getElementById("fSpread").addEventListener("change", syncLayoutUI);
 
