@@ -291,6 +291,13 @@
   .half .page-section{font-size:11px;margin-bottom:6px;}
   .half .status-badge{font-size:9.5px;padding:2px 6px;margin-top:auto;white-space:nowrap;gap:4px;}
   .split-foot{padding:4px 8px 6px;background:var(--card-bg);}
+  .wc-line{margin:-2px 0 8px;}
+  .wc-chip{
+    display:inline-block;padding:1px 7px;border-radius:4px;
+    background:rgba(8,10,14,0.55);color:#fff;
+    font-size:11px;font-weight:700;letter-spacing:0.02em;
+  }
+  .half .wc-chip{font-size:9.5px;padding:0 5px;margin-bottom:6px;align-self:flex-start;}
   .split-tag{
     font-size:9px;font-weight:700;letter-spacing:0.06em;color:var(--text-dim);
     border:1px solid var(--border-light);border-radius:4px;padding:0 4px;
@@ -1257,7 +1264,7 @@ function buildSpreads(pages){
   return spreads;
 }
 
-function halfHtml(title, section, typeKey, statusKey, extraTop){
+function halfHtml(title, section, typeKey, statusKey, wc){
   const type = CONTENT_TYPES[typeKey] || CONTENT_TYPES.unassigned;
   const status = STATUSES[statusKey] || STATUSES.planned;
   return `
@@ -1265,6 +1272,7 @@ function halfHtml(title, section, typeKey, statusKey, extraTop){
       <div class="type-band" title="${escapeHtml(type.label)}">${escapeHtml(type.short || type.label)}</div>
       <div class="${title ? "page-title" : "page-title untitled"}">${title ? escapeHtml(title) : "Untitled"}</div>
       ${section ? `<div class="page-section">${escapeHtml(section)}</div>` : ""}
+      ${wc ? wordCountHtml(wc, true) : ""}
       <span class="status-badge" style="color:${status.color};border:1.5px solid ${status.color}">
         <span class="dot" style="background:${status.color}"></span>${escapeHtml(status.label)}
       </span>
@@ -1272,6 +1280,15 @@ function halfHtml(title, section, typeKey, statusKey, extraTop){
 }
 
 const AD_TYPES = ["advertising", "houseAd"];
+function wordCountHtml(wc, compact){
+  const n = Number(wc);
+  if (!wc || !n || n <= 0) return "";
+  const txt = n.toLocaleString("en-AU");
+  return compact
+    ? `<span class="wc-chip" title="Assigned word count">${txt} words</span>`
+    : `<div class="wc-line" title="Assigned word count"><span class="wc-chip">${txt} words</span></div>`;
+}
+
 function adOnFirstHalf(aType, bType){
   return AD_TYPES.includes(aType) && !AD_TYPES.includes(bType);
 }
@@ -1289,8 +1306,10 @@ function splitCardHtml(p){
       </div>
       <div class="halves">
         ${(() => {
-          const a = halfHtml(p.title, p.section, p.contentType, p.status);
-          const b = halfHtml(p.bTitle, p.bSection, p.bContentType, p.bStatus);
+          // The word count goes on the editorial (non-ad) half.
+          const swapped = adOnFirstHalf(p.contentType, p.bContentType);
+          const a = halfHtml(p.title, p.section, p.contentType, p.status, swapped ? null : p.wordCount);
+          const b = halfHtml(p.bTitle, p.bSection, p.bContentType, p.bStatus, swapped ? p.wordCount : null);
           // Broken-space ads always sit on the right-hand side of the page.
           return adOnFirstHalf(p.contentType, p.bContentType) ? b + a : a + b;
         })()}
@@ -1319,6 +1338,7 @@ function pageCardHtml(p, recto){
         : `PAGE ${p.number}`}</div>
       <div class="${titleClass}">${title}</div>
       ${p.section ? `<div class="page-section">${escapeHtml(p.section)}</div>` : ""}
+      ${wordCountHtml(p.wordCount)}
       <div class="page-card-foot">
         <span class="status-badge" style="color:${status.color};border:1.5px solid ${status.color}">
           <span class="dot" style="background:${status.color}"></span>${escapeHtml(status.label)}
@@ -1455,35 +1475,70 @@ function refreshClipUI(){
   document.body.classList.toggle("has-clip", has);
   document.getElementById("clipBar").hidden = !has;
   if (has) {
+    const what = pageClipboard.spread
+      ? `spread, pages ${pageClipboard.fromNumber}–${pageClipboard.fromNumber + 1}`
+      : `page ${pageClipboard.fromNumber}`;
     document.getElementById("clipLabel").textContent =
-      `Page ${pageClipboard.fromNumber}${pageClipboard.data.title ? " — " + pageClipboard.data.title : ""}`;
+      `${what}${pageClipboard.data.title ? " — " + pageClipboard.data.title : ""}`;
   }
 }
 
 function copyPage(pageId){
-  const p = currentPages.find(x => x.id === pageId);
+  let p = currentPages.find(x => x.id === pageId);
   if (!p) return;
+  // A merged spread is stored on its left-hand page; copy it as a spread.
+  const spread = isMergedSpread(pageId);
+  if (spread) p = pairIndex[pageId].verso;
   const data = {};
   CONTENT_FIELDS.forEach(f => { data[f] = p[f] ?? null; });
-  pageClipboard = { fromNumber: p.number, data };
+  pageClipboard = { fromNumber: p.number, data, spread };
   try { localStorage.setItem("flatplanClipboard", JSON.stringify(pageClipboard)); } catch (e) {}
   refreshClipUI();
   if (openPageId) document.getElementById("pastePageBtn").hidden = false;
-  toast(`Copied page ${p.number}`);
+  toast(spread ? `Copied spread ${p.number}–${p.number + 1}` : `Copied page ${p.number}`);
+}
+
+function pageHasContent(p){
+  return !!(p && (p.title || p.bTitle || p.notes ||
+    (p.contentType && p.contentType !== "unassigned") ||
+    (p.bContentType && p.bContentType !== "unassigned")));
 }
 
 async function pastePage(pageId){
   if (!pageClipboard || !currentIssueId) return;
   const p = currentPages.find(x => x.id === pageId);
   if (!p) return;
-  const hasContent = p.title || p.bTitle || (p.contentType && p.contentType !== "unassigned") || p.notes;
-  if (hasContent && !window.confirm(`Replace what's on page ${p.number}${p.title ? " (“" + p.title + "”)" : ""} with the copied page?`)) return;
-  await updateDoc(doc(db, "issues", currentIssueId, "pages", pageId), {
+
+  if (pageClipboard.spread) {
+    const pair = pairIndex[pageId];
+    if (!pair) {
+      toast("A spread needs two facing pages — paste it onto either page of a pair");
+      return;
+    }
+    const { verso, recto } = pair;
+    if ((pageHasContent(verso) || pageHasContent(recto)) &&
+        !window.confirm(`Replace pages ${verso.number}–${recto.number} with the copied spread?`)) return;
+    await updateDoc(doc(db, "issues", currentIssueId, "pages", verso.id), {
+      ...pageClipboard.data,
+      layout: "full",
+      spread: true,
+      lastEditedBy: currentUserName,
+      lastEditedAt: serverTimestamp()
+    });
+    toast(`Pasted spread onto pages ${verso.number}–${recto.number}`);
+    return true;
+  }
+
+  // Pasting a single page onto a merged spread fills the spread (its left-hand page).
+  const target = isMergedSpread(pageId) ? pairIndex[pageId].verso : p;
+  const label = isMergedSpread(pageId) ? `spread ${target.number}–${target.number + 1}` : `page ${target.number}`;
+  if (pageHasContent(target) && !window.confirm(`Replace what's on ${label}${target.title ? " (“" + target.title + "”)" : ""} with the copied page?`)) return;
+  await updateDoc(doc(db, "issues", currentIssueId, "pages", target.id), {
     ...pageClipboard.data,
     lastEditedBy: currentUserName,
     lastEditedAt: serverTimestamp()
   });
-  toast(`Pasted onto page ${p.number}`);
+  toast(`Pasted onto ${label}`);
   return true;
 }
 
