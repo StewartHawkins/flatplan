@@ -449,6 +449,7 @@
       <h1>FLATPLAN</h1>
       <select id="issueSelect"></select>
       <button class="btn small secondary" id="newIssueBtn" hidden>+ New issue</button>
+      <button class="btn small secondary" id="pagesBtn" hidden title="Add or remove pages in this issue">&plusmn; Pages</button>
       <div class="spacer"></div>
       <div class="presence-row" id="presenceRow"></div>
       <div class="header-right">
@@ -552,6 +553,51 @@
         </div>
         <button type="submit" class="btn">Save</button>
       </form>
+    </div>
+  </div>
+
+  <div id="pagesOverlay" class="overlay center" hidden>
+    <div class="modal">
+      <h2>Add or remove pages</h2>
+      <p class="panel-meta" id="pgCurrent"></p>
+
+      <h3 class="sub-head" style="border-top:none;padding-top:0;">Add pages</h3>
+      <form id="addPagesForm">
+        <div class="row">
+          <div class="field">
+            <label>How many</label>
+            <input type="number" id="apCount" min="2" step="2" value="4" required>
+          </div>
+          <div class="field">
+            <label>Insert after page</label>
+            <input type="number" id="apAfter" min="1" required>
+          </div>
+        </div>
+        <p class="panel-meta" id="apPreview"></p>
+        <button type="submit" class="btn">Add pages</button>
+        <p class="err-text" id="apError"></p>
+      </form>
+
+      <h3 class="sub-head">Remove pages</h3>
+      <form id="removePagesForm">
+        <div class="row">
+          <div class="field">
+            <label>From page</label>
+            <input type="number" id="rpFrom" min="1" required>
+          </div>
+          <div class="field">
+            <label>To page</label>
+            <input type="number" id="rpTo" min="1" required>
+          </div>
+        </div>
+        <p class="panel-meta" id="rpPreview"></p>
+        <button type="submit" class="btn danger">Remove pages</button>
+        <p class="err-text" id="rpError"></p>
+      </form>
+
+      <div class="modal-actions">
+        <button type="button" class="btn secondary" id="pagesClose">Close</button>
+      </div>
     </div>
   </div>
 
@@ -891,6 +937,7 @@ function enterApp(){
   document.getElementById("currentUserLabel").textContent = currentUserName;
   document.getElementById("adminBtn").hidden = !isAdmin;
   document.getElementById("newIssueBtn").hidden = !isAdmin;
+  document.getElementById("pagesBtn").hidden = !isAdmin;
   buildLegend();
   show("appScreen");
   subscribeIssues();
@@ -1012,6 +1059,160 @@ document.getElementById("newIssueForm").addEventListener("submit", async (e) => 
   } catch (err) {
     console.error(err);
     errEl.textContent = "Couldn't create the issue. Check your Firestore setup (see SETUP.md).";
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+/* ============================= ADD / REMOVE PAGES ============================= */
+
+function pagesHaveContent(list){
+  return list.filter(p => p.title || p.bTitle || p.notes ||
+    (p.contentType && p.contentType !== "unassigned") ||
+    (p.bContentType && p.bContentType !== "unassigned"));
+}
+
+// Applies a new page order: `ordered` is the full list of surviving + new pages in
+// their new order (new pages have isNew:true). Renumbers, keeps spreads valid,
+// deletes removed pages, and writes in chunks to stay under Firestore's batch limit.
+async function applyPageOrder(ordered, removed){
+  const ops = [];
+  const newNum = new Map();
+  ordered.forEach((p, i) => newNum.set(p, i + 1));
+  const byOldNum = new Map(currentPages.map(p => [p.number, p]));
+
+  ordered.forEach((p, i) => {
+    const n = i + 1;
+    if (p.isNew) {
+      ops.push(["set", doc(collection(db, "issues", currentIssueId, "pages")), {
+        number: n, title: "", section: "", contentType: "unassigned",
+        status: "planned", notes: "", wordCount: null, photoCredit: "",
+        lastEditedBy: currentUserName, lastEditedAt: serverTimestamp()
+      }]);
+      return;
+    }
+    const update = {};
+    if (p.number !== n) update.number = n;
+    if (p.spread) {
+      // A spread stays only if it's still on an even (left-hand) page with its
+      // original right-hand partner directly after it.
+      const partner = byOldNum.get(p.number + 1);
+      const stillValid = n % 2 === 0 && partner && newNum.get(partner) === n + 1 && n + 1 <= ordered.length;
+      if (!stillValid) update.spread = false;
+    }
+    if (Object.keys(update).length) ops.push(["update", doc(db, "issues", currentIssueId, "pages", p.id), update]);
+  });
+  removed.forEach(p => ops.push(["delete", doc(db, "issues", currentIssueId, "pages", p.id)]));
+  ops.push(["update", doc(db, "issues", currentIssueId), { pageCount: ordered.length }]);
+
+  for (let i = 0; i < ops.length; i += 400) {
+    const batch = writeBatch(db);
+    ops.slice(i, i + 400).forEach(([kind, ref, data]) => {
+      if (kind === "set") batch.set(ref, data);
+      else if (kind === "update") batch.update(ref, data);
+      else batch.delete(ref);
+    });
+    await batch.commit();
+  }
+}
+
+function refreshPagesPreview(){
+  const total = currentPages.length;
+  const count = parseInt(document.getElementById("apCount").value, 10) || 0;
+  const after = parseInt(document.getElementById("apAfter").value, 10) || 0;
+  document.getElementById("apPreview").textContent = (count > 0 && after >= 1 && after <= total)
+    ? `New blank pages will be ${after + 1}–${after + count}. Page ${after + 1 <= total ? after + 1 : "—"} onwards moves up by ${count}. Issue becomes ${total + count} pages.`
+    : "";
+  const from = parseInt(document.getElementById("rpFrom").value, 10) || 0;
+  const to = parseInt(document.getElementById("rpTo").value, 10) || 0;
+  if (from >= 1 && to >= from && to <= total) {
+    const gone = currentPages.filter(p => p.number >= from && p.number <= to);
+    const filled = pagesHaveContent(gone).length;
+    document.getElementById("rpPreview").textContent =
+      `Removes ${gone.length} page${gone.length === 1 ? "" : "s"}${filled ? ` — ${filled} with content that will be lost` : " (all blank)"}. Issue becomes ${total - gone.length} pages.`;
+  } else {
+    document.getElementById("rpPreview").textContent = "";
+  }
+}
+["apCount","apAfter","rpFrom","rpTo"].forEach(id =>
+  document.getElementById(id).addEventListener("input", refreshPagesPreview));
+
+document.getElementById("pagesBtn").addEventListener("click", () => {
+  if (!currentIssueId || currentPages.length === 0) { toast("Pick an issue first"); return; }
+  const total = currentPages.length;
+  document.getElementById("pgCurrent").textContent =
+    `This issue has ${total} pages. Magazines usually grow or shrink in multiples of 4. Pages after the change are renumbered automatically; everyone sees it live.`;
+  let after = total - 3; if (after % 2 === 0) after -= 1; if (after < 1) after = 1;
+  document.getElementById("apAfter").value = after;
+  document.getElementById("apAfter").max = total;
+  document.getElementById("rpFrom").max = total;
+  document.getElementById("rpTo").max = total;
+  document.getElementById("rpFrom").value = "";
+  document.getElementById("rpTo").value = "";
+  document.getElementById("apError").textContent = "";
+  document.getElementById("rpError").textContent = "";
+  refreshPagesPreview();
+  document.getElementById("pagesOverlay").hidden = false;
+});
+document.getElementById("pagesClose").addEventListener("click", () => {
+  document.getElementById("pagesOverlay").hidden = true;
+});
+
+document.getElementById("addPagesForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const errEl = document.getElementById("apError");
+  errEl.textContent = "";
+  const total = currentPages.length;
+  const count = parseInt(document.getElementById("apCount").value, 10);
+  const after = parseInt(document.getElementById("apAfter").value, 10);
+  if (!count || count < 1 || count % 2 !== 0) { errEl.textContent = "Add an even number of pages (usually 4) so spreads stay paired."; return; }
+  if (!after || after < 1 || after > total) { errEl.textContent = `Pick a page between 1 and ${total}.`; return; }
+  if (total + count > 400) { errEl.textContent = "That would take the issue past 400 pages."; return; }
+  if (after % 2 === 0 && !window.confirm(`Page ${after} is a left-hand page, so inserting after it splits the ${after}–${after + 1} spread apart. Carry on?`)) return;
+  const btn = e.target.querySelector("button[type=submit]");
+  btn.disabled = true;
+  try {
+    const sorted = [...currentPages].sort((a, b) => a.number - b.number);
+    const blanks = Array.from({ length: count }, () => ({ isNew: true }));
+    const ordered = [...sorted.slice(0, after), ...blanks, ...sorted.slice(after)];
+    await applyPageOrder(ordered, []);
+    document.getElementById("pagesOverlay").hidden = true;
+    toast(`Added ${count} pages after page ${after}`);
+  } catch (err) {
+    console.error(err);
+    errEl.textContent = "Couldn't add the pages. Check your connection and try again.";
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById("removePagesForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const errEl = document.getElementById("rpError");
+  errEl.textContent = "";
+  const total = currentPages.length;
+  const from = parseInt(document.getElementById("rpFrom").value, 10);
+  const to = parseInt(document.getElementById("rpTo").value, 10);
+  if (!from || !to || from < 1 || to < from || to > total) { errEl.textContent = `Enter a range between 1 and ${total}.`; return; }
+  const gone = currentPages.filter(p => p.number >= from && p.number <= to);
+  if (total - gone.length < 4) { errEl.textContent = "An issue needs at least 4 pages."; return; }
+  const filled = pagesHaveContent(gone);
+  const oddNote = gone.length % 2 === 1 ? "\n\nThat's an odd number of pages, so every page after it swaps sides (left ↔ right) and any spreads after it are split." : "";
+  const contentNote = filled.length
+    ? `\n\n${filled.length} of these page${filled.length === 1 ? " has" : "s have"} content that will be deleted: ${filled.slice(0, 5).map(p => `p${p.number}${p.title ? " “" + p.title + "”" : ""}`).join(", ")}${filled.length > 5 ? "…" : ""}`
+    : "";
+  if (!window.confirm(`Remove page${gone.length === 1 ? "" : "s"} ${from}${to !== from ? "–" + to : ""}? This can't be undone.${contentNote}${oddNote}`)) return;
+  const btn = e.target.querySelector("button[type=submit]");
+  btn.disabled = true;
+  try {
+    const sorted = [...currentPages].sort((a, b) => a.number - b.number);
+    const ordered = sorted.filter(p => p.number < from || p.number > to);
+    await applyPageOrder(ordered, gone);
+    document.getElementById("pagesOverlay").hidden = true;
+    toast(`Removed ${gone.length} page${gone.length === 1 ? "" : "s"}`);
+  } catch (err) {
+    console.error(err);
+    errEl.textContent = "Couldn't remove the pages. Check your connection and try again.";
   } finally {
     btn.disabled = false;
   }
