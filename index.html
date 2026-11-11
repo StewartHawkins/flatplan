@@ -294,6 +294,11 @@
   .half .status-badge{font-size:9.5px;padding:2px 6px;margin-top:auto;white-space:nowrap;gap:4px;}
   .split-foot{padding:4px 8px 6px;background:var(--card-bg);}
   .wc-line{margin:-2px 0 8px;}
+  .reporter-line{
+    font-size:12px;font-weight:600;color:#fff;margin:-4px 0 6px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .reporter-line.compact{font-size:10.5px;margin:-2px 0 5px;}
   .wc-chip{
     display:inline-block;padding:1px 7px;border-radius:4px;
     background:rgba(8,10,14,0.55);color:#fff;
@@ -570,8 +575,8 @@
             <input type="number" id="fWordCount" min="0">
           </div>
           <div class="field">
-            <label>Photo credit</label>
-            <input type="text" id="fPhotoCredit" maxlength="80">
+            <label>Reporter</label>
+            <input type="text" id="fReporter" maxlength="80" placeholder="Who's writing it">
           </div>
         </div>
         <div class="field">
@@ -1077,7 +1082,7 @@ document.getElementById("newIssueForm").addEventListener("submit", async (e) => 
     for (let n = 1; n <= pageCount; n++) {
       batch.set(doc(db, "issues", issueRef.id, "pages", pad(n)), {
         number: n, title: "", section: "", contentType: "unassigned",
-        status: "planned", notes: "", wordCount: null, photoCredit: "",
+        status: "planned", notes: "", wordCount: null, photoCredit: "", reporter: "",
         lastEditedBy: "", lastEditedAt: null
       });
     }
@@ -1116,7 +1121,7 @@ async function applyPageOrder(ordered, removed){
     if (p.isNew) {
       ops.push(["set", doc(collection(db, "issues", currentIssueId, "pages")), {
         number: n, title: "", section: "", contentType: "unassigned",
-        status: "planned", notes: "", wordCount: null, photoCredit: "",
+        status: "planned", notes: "", wordCount: null, photoCredit: "", reporter: "",
         lastEditedBy: currentUserName, lastEditedAt: serverTimestamp()
       }]);
       return;
@@ -1267,7 +1272,7 @@ function buildSpreads(pages){
   return spreads;
 }
 
-function halfHtml(title, section, typeKey, statusKey, wc){
+function halfHtml(title, section, typeKey, statusKey, wc, reporter){
   const type = CONTENT_TYPES[typeKey] || CONTENT_TYPES.unassigned;
   const status = STATUSES[statusKey] || STATUSES.planned;
   return `
@@ -1275,6 +1280,7 @@ function halfHtml(title, section, typeKey, statusKey, wc){
       <div class="type-band" title="${escapeHtml(type.label)}"${type.ink ? ` style="color:${type.ink}"` : ""}>${escapeHtml(type.short || type.label)}</div>
       <div class="${title ? "page-title" : "page-title untitled"}">${title ? escapeHtml(title) : "Untitled"}</div>
       ${section ? `<div class="page-section">${escapeHtml(section)}</div>` : ""}
+      ${reporterHtml(reporter, true)}
       ${wc ? wordCountHtml(wc, true) : ""}
       <span class="status-badge" style="color:${status.color};border:1.5px solid ${status.color}">
         <span class="dot" style="background:${status.color}"></span>${escapeHtml(status.label)}
@@ -1283,6 +1289,11 @@ function halfHtml(title, section, typeKey, statusKey, wc){
 }
 
 const AD_TYPES = ["advertising", "houseAd"];
+function reporterHtml(name, compact){
+  if (!name || !String(name).trim()) return "";
+  return `<div class="reporter-line${compact ? " compact" : ""}" title="Reporter">&#9998; ${escapeHtml(String(name).trim())}</div>`;
+}
+
 function wordCountHtml(wc, compact){
   const n = Number(wc);
   if (!wc || !n || n <= 0) return "";
@@ -1311,8 +1322,8 @@ function splitCardHtml(p){
         ${(() => {
           // The word count goes on the editorial (non-ad) half.
           const swapped = adOnFirstHalf(p.contentType, p.bContentType);
-          const a = halfHtml(p.title, p.section, p.contentType, p.status, swapped ? null : p.wordCount);
-          const b = halfHtml(p.bTitle, p.bSection, p.bContentType, p.bStatus, swapped ? p.wordCount : null);
+          const a = halfHtml(p.title, p.section, p.contentType, p.status, swapped ? null : p.wordCount, swapped ? null : p.reporter);
+          const b = halfHtml(p.bTitle, p.bSection, p.bContentType, p.bStatus, swapped ? p.wordCount : null, swapped ? p.reporter : null);
           // Broken-space ads always sit on the right-hand side of the page.
           return adOnFirstHalf(p.contentType, p.bContentType) ? b + a : a + b;
         })()}
@@ -1341,6 +1352,7 @@ function pageCardHtml(p, recto){
         : `PAGE ${p.number}`}</div>
       <div class="${titleClass}">${title}</div>
       ${p.section ? `<div class="page-section">${escapeHtml(p.section)}</div>` : ""}
+      ${reporterHtml(p.reporter)}
       ${wordCountHtml(p.wordCount)}
       <div class="page-card-foot">
         <span class="status-badge" style="color:${status.color};border:1.5px solid ${status.color}">
@@ -1408,7 +1420,7 @@ function renderGrid(pages){
   });
 }
 
-const CONTENT_FIELDS = ["title", "section", "contentType", "status", "notes", "wordCount", "photoCredit",
+const CONTENT_FIELDS = ["title", "section", "contentType", "status", "notes", "wordCount", "photoCredit", "reporter",
   "layout", "bTitle", "bSection", "bContentType", "bStatus"];
 let pairIndex = {};
 
@@ -1598,7 +1610,7 @@ function openDetail(pageId){
     .map(([k, v]) => `<option value="${k}" ${k === (p.bStatus || "planned") ? "selected" : ""}>${escapeHtml(v.label)}</option>`).join("");
   syncLayoutUI();
   document.getElementById("fWordCount").value = p.wordCount ?? "";
-  document.getElementById("fPhotoCredit").value = p.photoCredit || "";
+  document.getElementById("fReporter").value = p.reporter || "";
   document.getElementById("fNotes").value = p.notes || "";
   document.getElementById("detailOverlay").hidden = false;
 }
@@ -1660,7 +1672,7 @@ document.getElementById("detailForm").addEventListener("submit", async (e) => {
     contentType: document.getElementById("fType").value,
     status: document.getElementById("fStatus").value,
     wordCount: wc === "" ? null : parseInt(wc, 10),
-    photoCredit: document.getElementById("fPhotoCredit").value.trim(),
+    reporter: document.getElementById("fReporter").value.trim(),
     notes: document.getElementById("fNotes").value.trim(),
     layout: wantSpread ? "full" : document.getElementById("fLayout").value,
     bTitle: document.getElementById("fBTitle").value.trim(),
