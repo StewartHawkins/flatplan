@@ -1168,7 +1168,8 @@ function enterApp(){
   document.getElementById("currentUserLabel").textContent = currentUserName;
   document.getElementById("adminBtn").hidden = !isAdmin;
   document.getElementById("newIssueBtn").hidden = !isAdmin;
-  document.getElementById("pagesBtn").hidden = !isAdmin;
+  // Any team member can add or remove pages (the database rules already allow it).
+  document.getElementById("pagesBtn").hidden = false;
   buildLegend();
   show("appScreen");
   subscribeIssues();
