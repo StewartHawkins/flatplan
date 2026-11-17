@@ -325,8 +325,43 @@
     font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);
     margin:4px 0 10px;padding-top:10px;border-top:1px solid var(--border);
   }
-  .page-card.spread-card{width:363px;}
-  .page-card.spread-card .page-title{font-size:15px;}
+  /* ---- double-page spread: drawn as an open magazine ---- */
+  .page-card.spread-card{
+    width:363px;padding:0;
+    border-radius:4px 4px 4px 4px;
+    /* stacked page edges on the outer sides */
+    box-shadow:0 3px 0 -1px rgba(255,255,255,0.12), 0 6px 0 -2px rgba(255,255,255,0.06);
+  }
+  .page-card.spread-card::before{
+    /* the gutter / fold down the middle */
+    content:"";position:absolute;top:0;bottom:0;left:50%;width:34px;margin-left:-17px;
+    background:linear-gradient(90deg,
+      transparent 0%, rgba(0,0,0,0.10) 30%, rgba(0,0,0,0.38) 48%,
+      rgba(0,0,0,0.55) 50%, rgba(0,0,0,0.38) 52%, rgba(0,0,0,0.10) 70%, transparent 100%);
+    pointer-events:none;z-index:2;
+  }
+  .page-card.spread-card::after{
+    /* hairline at the exact fold */
+    content:"";position:absolute;top:0;bottom:0;left:50%;width:1px;margin-left:-0.5px;
+    background:rgba(0,0,0,0.6);pointer-events:none;z-index:2;
+  }
+  .spread-card .type-band{margin:0 0 6px;padding:4px 54px 4px 11px;}
+  body.has-clip .spread-card > .type-band{padding-right:76px;}
+  .spread-card .card-actions{z-index:3;}
+  .spread-head{padding:0 11px;position:relative;z-index:1;}
+  .spread-head .page-title{font-size:16px;line-height:1.25;margin-bottom:6px;}
+  .spread-pages{
+    display:grid;grid-template-columns:1fr 1fr;flex:1;position:relative;z-index:1;
+  }
+  .spread-pages > div{display:flex;flex-direction:column;padding:0 18px 22px 11px;min-width:0;}
+  .spread-pages > div.recto{padding:0 11px 22px 18px;align-items:flex-end;justify-content:flex-end;text-align:right;}
+  .spread-pages .recto .edited-caption{margin-top:6px;}
+  .folio{
+    position:absolute;bottom:5px;font-size:10px;font-weight:800;
+    color:rgba(255,255,255,0.75);z-index:3;letter-spacing:0.04em;
+  }
+  .folio.l{left:9px;}
+  .folio.r{right:9px;}
   .spread-tag{
     display:inline-block;margin-left:6px;padding:1px 6px;border-radius:4px;
     background:rgba(8,10,14,0.55);color:#fff;font-size:9.5px;letter-spacing:0.06em;
@@ -415,6 +450,7 @@
   @media (max-width:520px){
     .page-card{width:150px;min-height:130px;}
     .page-card.spread-card{width:303px;}
+    .spread-head .page-title{font-size:14px;}
     header{padding:10px 14px;}
     #gridContainer{padding:14px;}
   }
@@ -1332,8 +1368,44 @@ function splitCardHtml(p){
     </div>`;
 }
 
+function spreadCardHtml(p, recto){
+  const type = CONTENT_TYPES[p.contentType] || CONTENT_TYPES.unassigned;
+  const status = STATUSES[p.status] || STATUSES.planned;
+  const title = p.title ? escapeHtml(p.title) : "Untitled";
+  const titleClass = p.title ? "page-title" : "page-title untitled";
+  return `
+    <div class="page-card spread-card type-${escapeHtml(p.contentType || "unassigned")}" draggable="true" data-page-id="${p.id}" style="--ct-color:${type.color}">
+      <div class="type-band" title="${escapeHtml(type.label)}"${type.ink ? ` style="color:${type.ink}"` : ""}>${escapeHtml(type.short || type.label)}</div>
+      <div class="card-actions">
+        <button class="edit-btn paste-btn" data-paste="${p.id}" title="Paste copied spread here">&#128203;</button>
+        <button class="edit-btn" data-copy="${p.id}" title="Copy spread">&#10697;</button>
+        <button class="edit-btn" data-open="${p.id}" title="Edit spread">&#9998;</button>
+      </div>
+      <div class="spread-head">
+        <div class="page-num">PAGES ${p.number}–${recto.number}<span class="spread-tag">SPREAD</span></div>
+        <div class="${titleClass}">${title}</div>
+      </div>
+      <div class="spread-pages">
+        <div class="verso">
+          ${p.section ? `<div class="page-section">${escapeHtml(p.section)}</div>` : ""}
+          ${reporterHtml(p.reporter)}
+          ${wordCountHtml(p.wordCount)}
+        </div>
+        <div class="recto">
+          <span class="status-badge" style="color:${status.color};border:1.5px solid ${status.color}">
+            <span class="dot" style="background:${status.color}"></span>${escapeHtml(status.label)}
+          </span>
+          ${p.lastEditedBy ? `<span class="edited-caption">Edited by ${escapeHtml(p.lastEditedBy)} · ${timeAgo(p.lastEditedAt)}</span>` : ""}
+        </div>
+      </div>
+      <span class="folio l">${p.number}</span>
+      <span class="folio r">${recto.number}</span>
+    </div>`;
+}
+
 function pageCardHtml(p, recto){
-  if (!recto && p.layout === "halfV") return splitCardHtml(p);
+  if (recto) return spreadCardHtml(p, recto);
+  if (p.layout === "halfV") return splitCardHtml(p);
   const type = CONTENT_TYPES[p.contentType] || CONTENT_TYPES.unassigned;
   const isSpread = !!recto;
   const status = STATUSES[p.status] || STATUSES.planned;
