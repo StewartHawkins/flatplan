@@ -456,7 +456,164 @@
     header{padding:10px 14px;}
     #gridContainer{padding:14px;}
   }
+
+  /* =====================================================================
+     MAGAZINE LOOK — pages drawn as paper on a dark desk.
+     Section colour = header band + light tint of the paper.
+     ===================================================================== */
+  :root{
+    --paper:#f7f3ea;
+    --paper-edge:#ddd5c4;
+    --ink:#16181d;
+    --ink-soft:#4a4d55;
+    --ink-faint:#8a8780;
+    --serif:Georgia, "Iowan Old Style", "Times New Roman", serif;
+  }
+  #gridContainer{gap:28px 30px;}
+  .spread{background:none;padding:0;gap:0;border-radius:2px;box-shadow:0 8px 18px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.4);}
+  .page-card{
+    --tint:color-mix(in srgb, var(--ct-color, transparent) 30%, var(--paper));
+    width:180px;min-height:0;aspect-ratio:230 / 297;
+    background:var(--tint);
+    color:var(--ink);
+    border:0;border-radius:1px;
+    padding:0 13px 22px;
+    transition:transform 0.12s, box-shadow 0.12s;
+  }
+  .page-card:hover{background:var(--tint);transform:translateY(-2px);}
+  .page-card.type-unassigned{background:var(--paper);}
+  .page-card.drag-over{outline:3px solid var(--accent);outline-offset:-3px;box-shadow:none;}
+  /* gutter shading where two facing pages meet */
+  .spread.pair > .page-card.side-verso{background:linear-gradient(to left, rgba(0,0,0,0.20), rgba(0,0,0,0.04) 12px, transparent 26px), var(--tint);}
+  .spread.pair > .page-card.side-recto{background:linear-gradient(to right, rgba(0,0,0,0.20), rgba(0,0,0,0.04) 12px, transparent 26px), var(--tint);}
+  .spread.pair > .page-card.type-unassigned.side-verso{--tint:var(--paper);}
+  .spread.pair > .page-card.type-unassigned.side-recto{--tint:var(--paper);}
+
+  .type-band{margin:0 -13px 12px;padding:5px 54px 5px 13px;font-size:9.5px;letter-spacing:0.12em;}
+  .page-card.type-unassigned .type-band,
+  .half.type-unassigned .type-band{background:var(--paper-edge);color:var(--ink-soft);}
+  .page-card.type-unassigned .edit-btn,
+  .split-card .card-actions .edit-btn{color:var(--ink-soft);}
+  .edit-btn:hover{background:rgba(0,0,0,0.12);}
+
+  .page-section{
+    font-size:9.5px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;
+    color:var(--ink-soft);margin:0 0 5px;
+  }
+  .page-title{
+    font-family:var(--serif);font-size:17px;font-weight:700;line-height:1.18;
+    color:var(--ink);margin-bottom:7px;letter-spacing:-0.005em;
+  }
+  .page-title.untitled{color:var(--ink-faint);font-weight:400;font-style:italic;font-size:15px;}
+  .reporter-line{
+    font-family:var(--serif);font-style:italic;font-weight:400;
+    font-size:12px;color:var(--ink-soft);margin:0 0 7px;
+  }
+  .reporter-line.compact{font-size:10.5px;margin:0 0 5px;}
+  .wc-line{margin:0 0 8px;}
+  .wc-chip{background:transparent;color:var(--ink-soft);border:1px solid rgba(0,0,0,0.25);font-size:10px;padding:0 6px;}
+  .half .wc-chip{font-size:9px;}
+  /* faint "body copy" lines on pages that don't have a headline yet */
+  .greek{
+    flex:1;min-height:30px;margin:2px 0 8px;opacity:0.55;
+    background:repeating-linear-gradient(to bottom, transparent 0 6px, rgba(0,0,0,0.10) 6px 9px);
+    -webkit-mask:linear-gradient(to bottom, #000 70%, transparent);
+            mask:linear-gradient(to bottom, #000 70%, transparent);
+  }
+  .page-card-foot{gap:5px;}
+  .status-badge{
+    background:var(--sc);color:#111;border:0;
+    font-size:9.5px;font-weight:700;letter-spacing:0.02em;padding:2px 8px;
+  }
+  .status-badge .dot{background:rgba(0,0,0,0.55) !important;width:6px;height:6px;}
+  .edited-caption{color:var(--ink-faint);font-size:9.5px;}
+  .folio{
+    position:absolute;bottom:6px;font-size:10px;font-weight:700;
+    color:var(--ink-soft);letter-spacing:0.04em;font-variant-numeric:tabular-nums;
+  }
+  .page-card.side-verso > .folio{left:10px;}
+  .page-card.side-recto > .folio{right:10px;}
+
+  /* broken space (half pages) */
+  .page-card.split-card{background:var(--paper);padding:0;}
+  .page-card.split-card:hover{background:var(--paper);}
+  .split-head{background:var(--paper-edge);height:24px;}
+  .split-tag{border:0;color:var(--ink-soft);font-size:8.5px;letter-spacing:0.1em;padding:0;}
+  .split-folio{position:static;margin-left:auto;margin-right:62px;}
+  body.has-clip .split-folio{margin-right:86px;}
+  .halves{background:var(--paper-edge);gap:1px;}
+  .half{background:color-mix(in srgb, var(--ct-color) 30%, var(--paper));padding:0 8px 10px;}
+  .half.type-unassigned{background:var(--paper);}
+  .half .type-band{margin:0 -8px 8px;}
+  .half .page-title{font-size:13px;}
+  .half .page-section{font-size:8.5px;}
+  .half .status-badge{font-size:8.5px;}
+  .split-foot{background:var(--paper);}
+
+  /* double-page spread */
+  .page-card.spread-card{width:360px;aspect-ratio:460 / 297;box-shadow:none;}
+  .page-card.spread-card::before{
+    width:44px;margin-left:-22px;
+    background:linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.06) 30%, rgba(0,0,0,0.22) 48%,
+      rgba(0,0,0,0.32) 50%, rgba(0,0,0,0.22) 52%, rgba(0,0,0,0.06) 70%, transparent 100%);
+  }
+  .page-card.spread-card::after{background:rgba(0,0,0,0.25);}
+  .spread-card .type-band{margin:0 0 12px;padding:5px 54px 5px 13px;}
+  .spread-head{padding:0 13px;}
+  .spread-kicker{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
+  .spread-kicker .page-section{margin:0;}
+  .spread-tag{background:var(--ink);color:var(--paper);font-size:8.5px;margin:0;}
+  .spread-head .page-title{font-size:21px;line-height:1.12;margin-bottom:8px;}
+  .spread-pages > div{padding:0 22px 24px 13px;}
+  .spread-pages > div.recto{padding:0 13px 24px 22px;}
+  .page-card.spread-card .folio{color:var(--ink-soft);}
+
+  @media (max-width:520px){
+    .page-card{width:150px;}
+    .page-card.spread-card{width:300px;}
+    .page-title{font-size:14.5px;}
+    .spread-head .page-title{font-size:17px;}
+    #gridContainer{gap:20px 18px;}
+  }
+
+  /* =====================================================================
+     LIGHT THEME (default). Toggle with the sun/moon button in the header.
+     ===================================================================== */
+  :root.theme-light{
+    --bg:#e7e3da;            /* the "desk" */
+    --bg-elevated:#fbfaf7;   /* header, panels, dialogs */
+    --card-bg:#f3f0ea;
+    --card-bg-hover:#ebe7df;
+    --border:#d7d1c5;
+    --border-light:#c3bcae;
+    --text:#1b1d22;
+    --text-dim:#5a5d65;
+    --text-faint:#8d8a83;
+    --accent:#b07d1f;
+    --accent-dim:#d6b26d;
+    --danger:#c0492b;
+    --ct-unassigned:#b9b2a4;
+    --paper:#fffdf8;
+    --paper-edge:#e6dfd1;
+    --st-planned:#a3acb8;
+  }
+  :root.theme-light .btn{color:#fff;}
+  :root.theme-light .btn.secondary{color:var(--text);}
+  :root.theme-light .overlay{background:rgba(40,36,28,0.35);}
+  :root.theme-light .spread{box-shadow:0 4px 12px rgba(60,50,30,0.22), 0 1px 3px rgba(60,50,30,0.18);}
+  :root.theme-light .page-card.spread-card{box-shadow:none;}
+  :root.theme-light .clip-bar{background:color-mix(in srgb, var(--accent) 14%, var(--bg-elevated));}
+  :root.theme-light #toast{color:var(--text);box-shadow:0 4px 14px rgba(0,0,0,0.12);}
+  :root.theme-light select, :root.theme-light input, :root.theme-light textarea{color-scheme:light;}
+  #themeBtn{min-width:34px;padding-left:8px;padding-right:8px;font-size:15px;line-height:1;}
 </style>
+<script>
+  (function(){
+    var t = "light";
+    try { t = localStorage.getItem("flatplanTheme") || "light"; } catch (e) {}
+    if (t === "light") document.documentElement.classList.add("theme-light");
+  })();
+</script>
 </head>
 <body>
 
@@ -522,6 +679,7 @@
         <span class="user-name" id="currentUserLabel"></span>
         <button class="btn small secondary" id="screenshotBtn" title="Download the current flatplan as a PNG image">&#128247; Download PNG</button>
         <button class="btn small secondary" id="adminBtn" hidden>Team</button>
+        <button class="btn small secondary" id="themeBtn" title="Switch light / dark"></button>
         <button class="btn small secondary" id="signOutBtn">Sign out</button>
       </div>
     </header>
@@ -1316,11 +1474,11 @@ function halfHtml(title, section, typeKey, statusKey, wc, reporter){
   return `
     <div class="half type-${escapeHtml(typeKey || "unassigned")}" style="--ct-color:${type.color}">
       <div class="type-band" title="${escapeHtml(type.label)}"${type.ink ? ` style="color:${type.ink}"` : ""}>${escapeHtml(type.short || type.label)}</div>
-      <div class="${title ? "page-title" : "page-title untitled"}">${title ? escapeHtml(title) : "Untitled"}</div>
       ${section ? `<div class="page-section">${escapeHtml(section)}</div>` : ""}
+      <div class="${title ? "page-title" : "page-title untitled"}">${title ? escapeHtml(title) : "Untitled"}</div>
       ${reporterHtml(reporter, true)}
       ${wc ? wordCountHtml(wc, true) : ""}
-      <span class="status-badge" style="color:${status.color};border:1.5px solid ${status.color}">
+      <span class="status-badge" style="--sc:${status.color}">
         <span class="dot" style="background:${status.color}"></span>${escapeHtml(status.label)}
       </span>
     </div>`;
@@ -1329,7 +1487,7 @@ function halfHtml(title, section, typeKey, statusKey, wc, reporter){
 const AD_TYPES = ["advertising", "houseAd"];
 function reporterHtml(name, compact){
   if (!name || !String(name).trim()) return "";
-  return `<div class="reporter-line${compact ? " compact" : ""}" title="Reporter">&#9998; ${escapeHtml(String(name).trim())}</div>`;
+  return `<div class="reporter-line${compact ? " compact" : ""}" title="Reporter">By ${escapeHtml(String(name).trim())}</div>`;
 }
 
 function wordCountHtml(wc, compact){
@@ -1349,7 +1507,7 @@ function splitCardHtml(p){
   return `
     <div class="page-card split-card" draggable="true" data-page-id="${p.id}">
       <div class="split-head">
-        <div class="page-num">PAGE ${p.number}</div><span class="split-tag">½ + ½</span>
+        <span class="split-tag">½ + ½</span><span class="folio split-folio">${p.number}</span>
       </div>
       <div class="card-actions">
         <button class="edit-btn paste-btn" data-paste="${p.id}" title="Paste copied page here">&#128203;</button>
@@ -1384,17 +1542,16 @@ function spreadCardHtml(p, recto){
         <button class="edit-btn" data-open="${p.id}" title="Edit spread">&#9998;</button>
       </div>
       <div class="spread-head">
-        <div class="page-num">PAGES ${p.number}–${recto.number}<span class="spread-tag">SPREAD</span></div>
+        <div class="spread-kicker">${p.section ? `<span class="page-section">${escapeHtml(p.section)}</span>` : ""}<span class="spread-tag">SPREAD</span></div>
         <div class="${titleClass}">${title}</div>
       </div>
       <div class="spread-pages">
         <div class="verso">
-          ${p.section ? `<div class="page-section">${escapeHtml(p.section)}</div>` : ""}
           ${reporterHtml(p.reporter)}
           ${wordCountHtml(p.wordCount)}
         </div>
         <div class="recto">
-          <span class="status-badge" style="color:${status.color};border:1.5px solid ${status.color}">
+          <span class="status-badge" style="--sc:${status.color}">
             <span class="dot" style="background:${status.color}"></span>${escapeHtml(status.label)}
           </span>
           ${p.lastEditedBy ? `<span class="edited-caption">Edited by ${escapeHtml(p.lastEditedBy)} · ${timeAgo(p.lastEditedAt)}</span>` : ""}
@@ -1414,26 +1571,25 @@ function pageCardHtml(p, recto){
   const title = p.title ? escapeHtml(p.title) : "Untitled";
   const titleClass = p.title ? "page-title" : "page-title untitled";
   return `
-    <div class="page-card type-${escapeHtml(p.contentType || "unassigned")}${isSpread ? " spread-card" : ""}" draggable="true" data-page-id="${p.id}" style="--ct-color:${type.color}">
+    <div class="page-card type-${escapeHtml(p.contentType || "unassigned")} ${p.number % 2 === 0 ? "side-verso" : "side-recto"}" draggable="true" data-page-id="${p.id}" style="--ct-color:${type.color}">
       <div class="type-band" title="${escapeHtml(type.label)}"${type.ink ? ` style="color:${type.ink}"` : ""}>${escapeHtml(type.short || type.label)}</div>
       <div class="card-actions">
         <button class="edit-btn paste-btn" data-paste="${p.id}" title="Paste copied page here">&#128203;</button>
         <button class="edit-btn" data-copy="${p.id}" title="Copy page">&#10697;</button>
         <button class="edit-btn" data-open="${p.id}" title="Edit page">&#9998;</button>
       </div>
-      <div class="page-num">${isSpread
-        ? `PAGES ${p.number}–${recto.number}<span class="spread-tag">SPREAD</span>`
-        : `PAGE ${p.number}`}</div>
-      <div class="${titleClass}">${title}</div>
       ${p.section ? `<div class="page-section">${escapeHtml(p.section)}</div>` : ""}
+      <div class="${titleClass}">${title}</div>
       ${reporterHtml(p.reporter)}
       ${wordCountHtml(p.wordCount)}
+      ${p.title ? "" : `<div class="greek" aria-hidden="true"></div>`}
       <div class="page-card-foot">
-        <span class="status-badge" style="color:${status.color};border:1.5px solid ${status.color}">
+        <span class="status-badge" style="--sc:${status.color}">
           <span class="dot" style="background:${status.color}"></span>${escapeHtml(status.label)}
         </span>
         ${p.lastEditedBy ? `<span class="edited-caption">Edited by ${escapeHtml(p.lastEditedBy)} · ${timeAgo(p.lastEditedAt)}</span>` : ""}
       </div>
+      <span class="folio">${p.number}</span>
     </div>`;
 }
 
@@ -1768,6 +1924,24 @@ document.getElementById("detailForm").addEventListener("submit", async (e) => {
   });
   document.getElementById("detailOverlay").hidden = true;
   toast("Saved");
+});
+
+/* ============================= THEME (light / dark) ============================= */
+
+function applyTheme(t){
+  const light = t !== "dark";
+  document.documentElement.classList.toggle("theme-light", light);
+  const btn = document.getElementById("themeBtn");
+  btn.innerHTML = light ? "&#9790;" : "&#9728;";   // moon = switch to dark, sun = switch to light
+  btn.title = light ? "Switch to dark background" : "Switch to light background";
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", light ? "#fbfaf7" : "#10141a");
+}
+applyTheme(document.documentElement.classList.contains("theme-light") ? "light" : "dark");
+document.getElementById("themeBtn").addEventListener("click", () => {
+  const next = document.documentElement.classList.contains("theme-light") ? "dark" : "light";
+  try { localStorage.setItem("flatplanTheme", next); } catch (e) {}
+  applyTheme(next);
 });
 
 /* ============================= SCREENSHOT ============================= */
