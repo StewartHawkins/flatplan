@@ -514,6 +514,13 @@
   .wc-chip{background:transparent;color:var(--ink-soft);border:1px solid rgba(0,0,0,0.25);font-size:10px;padding:0 6px;}
   .half .wc-chip{font-size:9px;}
   /* faint "body copy" lines on pages that don't have a headline yet */
+  .card-notes{
+    font-size:10.5px;line-height:1.35;color:var(--ink-soft);
+    margin:0 0 8px;padding-left:7px;border-left:2px solid rgba(0,0,0,0.18);
+    white-space:pre-line;overflow-wrap:anywhere;
+    display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden;
+  }
+  .card-notes.compact{font-size:9.5px;-webkit-line-clamp:3;padding-left:5px;}
   .greek{
     flex:1;min-height:30px;margin:2px 0 8px;opacity:0.55;
     background:repeating-linear-gradient(to bottom, transparent 0 6px, rgba(0,0,0,0.10) 6px 9px);
@@ -1469,7 +1476,7 @@ function buildSpreads(pages){
   return spreads;
 }
 
-function halfHtml(title, section, typeKey, statusKey, wc, reporter){
+function halfHtml(title, section, typeKey, statusKey, wc, reporter, notes){
   const type = CONTENT_TYPES[typeKey] || CONTENT_TYPES.unassigned;
   const status = STATUSES[statusKey] || STATUSES.planned;
   return `
@@ -1479,6 +1486,7 @@ function halfHtml(title, section, typeKey, statusKey, wc, reporter){
       <div class="${title ? "page-title" : "page-title untitled"}">${title ? escapeHtml(title) : "Untitled"}</div>
       ${reporterHtml(reporter, true)}
       ${wc ? wordCountHtml(wc, true) : ""}
+      ${notesHtml(notes, true)}
       <span class="status-badge" style="--sc:${status.color}">
         <span class="dot" style="background:${status.color}"></span>${escapeHtml(status.label)}
       </span>
@@ -1489,6 +1497,12 @@ const AD_TYPES = ["advertising", "houseAd"];
 function reporterHtml(name, compact){
   if (!name || !String(name).trim()) return "";
   return `<div class="reporter-line${compact ? " compact" : ""}" title="Reporter">By ${escapeHtml(String(name).trim())}</div>`;
+}
+
+function notesHtml(notes, compact){
+  const t = notes ? String(notes).trim() : "";
+  if (!t) return "";
+  return `<div class="card-notes${compact ? " compact" : ""}" title="${escapeHtml(t)}">${escapeHtml(t)}</div>`;
 }
 
 function wordCountHtml(wc, compact){
@@ -1519,8 +1533,8 @@ function splitCardHtml(p){
         ${(() => {
           // The word count goes on the editorial (non-ad) half.
           const swapped = adOnFirstHalf(p.contentType, p.bContentType);
-          const a = halfHtml(p.title, p.section, p.contentType, p.status, swapped ? null : p.wordCount, swapped ? null : p.reporter);
-          const b = halfHtml(p.bTitle, p.bSection, p.bContentType, p.bStatus, swapped ? p.wordCount : null, swapped ? p.reporter : null);
+          const a = halfHtml(p.title, p.section, p.contentType, p.status, swapped ? null : p.wordCount, swapped ? null : p.reporter, swapped ? null : p.notes);
+          const b = halfHtml(p.bTitle, p.bSection, p.bContentType, p.bStatus, swapped ? p.wordCount : null, swapped ? p.reporter : null, swapped ? p.notes : null);
           // Broken-space ads always sit on the right-hand side of the page.
           return adOnFirstHalf(p.contentType, p.bContentType) ? b + a : a + b;
         })()}
@@ -1550,6 +1564,7 @@ function spreadCardHtml(p, recto){
         <div class="verso">
           ${reporterHtml(p.reporter)}
           ${wordCountHtml(p.wordCount)}
+          ${notesHtml(p.notes)}
         </div>
         <div class="recto">
           <span class="status-badge" style="--sc:${status.color}">
@@ -1583,6 +1598,7 @@ function pageCardHtml(p, recto){
       <div class="${titleClass}">${title}</div>
       ${reporterHtml(p.reporter)}
       ${wordCountHtml(p.wordCount)}
+      ${notesHtml(p.notes)}
       ${p.title ? "" : `<div class="greek" aria-hidden="true"></div>`}
       <div class="page-card-foot">
         <span class="status-badge" style="--sc:${status.color}">
