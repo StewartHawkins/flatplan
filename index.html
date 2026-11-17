@@ -224,6 +224,8 @@
   }
   .page-card:hover{background:color-mix(in srgb, var(--ct-color, transparent) 56%, var(--card-bg-hover));}
   .page-card.type-unassigned{background:var(--card-bg);border-color:var(--border-light);}
+  .page-card{cursor:pointer;}
+  .page-card:active{cursor:grabbing;}
   .page-card.dragging{opacity:0.4;}
   .page-card.drag-over{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent);}
   .type-band{
@@ -1482,6 +1484,16 @@ function renderGrid(pages){
   });
   grid.querySelectorAll("[data-paste]").forEach(btn => {
     btn.addEventListener("click", (e) => { e.stopPropagation(); pastePage(btn.dataset.paste); });
+  });
+
+  // Tapping anywhere on a card (except its buttons) opens the edit panel.
+  // A drag never fires a click, so this doesn't interfere with drag-to-swap.
+  grid.querySelectorAll(".page-card").forEach(card => {
+    card.addEventListener("click", (e) => {
+      if (e.target.closest("button, a, input, select, textarea")) return;
+      const id = card.querySelector("[data-open]")?.dataset.open || card.dataset.pageId;
+      openDetail(id);
+    });
   });
 
   grid.querySelectorAll("[data-open]").forEach(btn => {
