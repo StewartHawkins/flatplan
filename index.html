@@ -644,6 +644,23 @@
     left:0;background:linear-gradient(to right, rgba(0,0,0,0.20), rgba(0,0,0,0.04) 12px, transparent 26px);
   }
   .split-card .half .type-band{font-size:8px;letter-spacing:0.03em;padding:4px 6px;margin:0 -9px 8px;}
+
+  /* ---- thumbnails ---- */
+  .card-thumb{
+    display:block;width:100%;flex:1 1 0;min-height:38px;max-height:132px;
+    object-fit:cover;margin:2px 0 8px;border-radius:1px;
+    box-shadow:0 0 0 1px rgba(0,0,0,0.08);background:rgba(0,0,0,0.05);
+    pointer-events:none;
+  }
+  .card-thumb.half-thumb{max-height:80px;min-height:28px;margin-bottom:6px;}
+  .spread-pages > div.recto{justify-content:flex-start;}
+  .spread-pages .recto .status-badge{margin-top:auto;}
+  .card-thumb.spread-thumb{max-height:none;min-height:50px;margin:0 0 8px;}
+  .thumb-field{display:flex;gap:12px;align-items:flex-start;}
+  #fThumbPreview{width:96px;height:72px;object-fit:cover;border-radius:4px;border:1px solid var(--border-light);flex:none;}
+  .thumb-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+  .thumb-actions label.btn{margin:0;cursor:pointer;}
+  .thumb-hint{flex-basis:100%;color:var(--text-faint);font-size:11.5px;}
 </style>
 <script>
   (function(){
@@ -816,6 +833,18 @@
         <div class="field">
           <label>Notes</label>
           <textarea id="fNotes" maxlength="500"></textarea>
+        </div>
+        <div class="field">
+          <label>Thumbnail picture / illustration</label>
+          <div class="thumb-field">
+            <img id="fThumbPreview" alt="" hidden>
+            <div class="thumb-actions">
+              <label class="btn small secondary" for="fThumbFile">&#128247; <span id="fThumbPickLabel">Add picture</span></label>
+              <input type="file" id="fThumbFile" accept="image/*" hidden>
+              <button type="button" class="btn small secondary" id="fThumbRemove" hidden>Remove</button>
+              <small class="thumb-hint" id="fThumbHint">Shrunk automatically to a small, light preview.</small>
+            </div>
+          </div>
         </div>
         <button type="submit" class="btn">Save</button>
       </form>
@@ -1339,7 +1368,7 @@ document.getElementById("newIssueForm").addEventListener("submit", async (e) => 
 /* ============================= ADD / REMOVE PAGES ============================= */
 
 function pagesHaveContent(list){
-  return list.filter(p => p.title || p.bTitle || p.notes ||
+  return list.filter(p => p.title || p.bTitle || p.notes || p.thumb ||
     (p.contentType && p.contentType !== "unassigned") ||
     (p.bContentType && p.bContentType !== "unassigned"));
 }
@@ -1509,7 +1538,7 @@ function buildSpreads(pages){
   return spreads;
 }
 
-function halfHtml(title, section, typeKey, statusKey, wc, reporter, notes){
+function halfHtml(title, section, typeKey, statusKey, wc, reporter, notes, thumb){
   const type = CONTENT_TYPES[typeKey] || CONTENT_TYPES.unassigned;
   const status = STATUSES[statusKey] || STATUSES.planned;
   return `
@@ -1519,6 +1548,7 @@ function halfHtml(title, section, typeKey, statusKey, wc, reporter, notes){
       <div class="${title ? "page-title" : "page-title untitled"}">${title ? escapeHtml(title) : "Untitled"}</div>
       ${reporterHtml(reporter, true)}
       ${wc ? wordCountHtml(wc, true) : ""}
+      ${thumbHtml(thumb, "half-thumb")}
       ${notesHtml(notes, true)}
       <span class="status-badge" style="--sc:${status.color}">
         <span class="dot" style="background:${status.color}"></span>${escapeHtml(status.short || status.label)}
@@ -1566,8 +1596,8 @@ function splitCardHtml(p){
         ${(() => {
           // The word count goes on the editorial (non-ad) half.
           const swapped = adOnFirstHalf(p.contentType, p.bContentType);
-          const a = halfHtml(p.title, p.section, p.contentType, p.status, swapped ? null : p.wordCount, swapped ? null : p.reporter, swapped ? null : p.notes);
-          const b = halfHtml(p.bTitle, p.bSection, p.bContentType, p.bStatus, swapped ? p.wordCount : null, swapped ? p.reporter : null, swapped ? p.notes : null);
+          const a = halfHtml(p.title, p.section, p.contentType, p.status, swapped ? null : p.wordCount, swapped ? null : p.reporter, swapped ? null : p.notes, swapped ? null : p.thumb);
+          const b = halfHtml(p.bTitle, p.bSection, p.bContentType, p.bStatus, swapped ? p.wordCount : null, swapped ? p.reporter : null, swapped ? p.notes : null, swapped ? p.thumb : null);
           // Broken-space ads always sit on the right-hand side of the page.
           return adOnFirstHalf(p.contentType, p.bContentType) ? b + a : a + b;
         })()}
@@ -1601,6 +1631,7 @@ function spreadCardHtml(p, recto){
           ${notesHtml(p.notes)}
         </div>
         <div class="recto">
+          ${thumbHtml(p.thumb, "spread-thumb")}
           <span class="status-badge" style="--sc:${status.color}">
             <span class="dot" style="background:${status.color}"></span>${escapeHtml(status.label)}
           </span>
@@ -1632,8 +1663,9 @@ function pageCardHtml(p, recto){
       <div class="${titleClass}">${title}</div>
       ${reporterHtml(p.reporter)}
       ${wordCountHtml(p.wordCount)}
+      ${thumbHtml(p.thumb)}
       ${notesHtml(p.notes)}
-      ${p.title ? "" : `<div class="greek" aria-hidden="true"></div>`}
+      ${p.title || p.thumb ? "" : `<div class="greek" aria-hidden="true"></div>`}
       <div class="page-card-foot">
         <span class="status-badge" style="--sc:${status.color}">
           <span class="dot" style="background:${status.color}"></span>${escapeHtml(status.label)}
@@ -1712,7 +1744,7 @@ function renderGrid(pages){
 }
 
 const CONTENT_FIELDS = ["title", "section", "contentType", "status", "notes", "wordCount", "photoCredit", "reporter",
-  "layout", "bTitle", "bSection", "bContentType", "bStatus"];
+  "layout", "bTitle", "bSection", "bContentType", "bStatus", "thumb"];
 let pairIndex = {};
 
 function isMergedSpread(pageId){
@@ -1771,6 +1803,80 @@ async function swapPages(aId, bId){
   toast(`Swapped page ${aData.number} and page ${bData.number}`);
 }
 
+/* ============================= THUMBNAILS ============================= */
+// Pictures are shrunk in the browser and stored inline on the page document
+// (a small WebP/JPEG data URL, typically 20–40 KB), so no Firebase Storage
+// (which needs the paid Blaze plan) is required.
+
+const THUMB_MAX_SIDE = 400;
+const THUMB_MAX_BYTES = 90 * 1024;
+let pendingThumb = "";
+
+function setThumbField(dataUrl){
+  pendingThumb = dataUrl || "";
+  const img = document.getElementById("fThumbPreview");
+  img.hidden = !pendingThumb;
+  if (pendingThumb) img.src = pendingThumb; else img.removeAttribute("src");
+  document.getElementById("fThumbRemove").hidden = !pendingThumb;
+  document.getElementById("fThumbPickLabel").textContent = pendingThumb ? "Replace" : "Add picture";
+  document.getElementById("fThumbHint").textContent = pendingThumb
+    ? `${Math.round(pendingThumb.length * 0.75 / 1024)} KB · saved when you press Save`
+    : "Shrunk automatically to a small, light preview.";
+}
+
+function loadImage(file){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Couldn't read that image")); };
+    img.src = url;
+  });
+}
+
+async function shrinkImage(file){
+  const img = await loadImage(file);
+  let side = THUMB_MAX_SIDE;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const scale = Math.min(1, side / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";           // flatten transparent PNGs onto white
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    const quality = attempt < 3 ? 0.72 - attempt * 0.1 : 0.5;
+    let out = canvas.toDataURL("image/webp", quality);
+    if (!out.startsWith("data:image/webp")) out = canvas.toDataURL("image/jpeg", quality);
+    if (out.length * 0.75 <= THUMB_MAX_BYTES) return out;
+    if (attempt >= 2) side = Math.round(side * 0.8);
+  }
+  throw new Error("That image is too detailed to shrink enough — try a different one");
+}
+
+document.getElementById("fThumbFile").addEventListener("change", async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  if (!file.type.startsWith("image/")) { toast("That isn't an image file"); return; }
+  document.getElementById("fThumbHint").textContent = "Shrinking…";
+  try {
+    setThumbField(await shrinkImage(file));
+  } catch (err) {
+    console.error(err);
+    toast(err.message || "Couldn't use that image");
+    setThumbField(pendingThumb);
+  }
+});
+document.getElementById("fThumbRemove").addEventListener("click", () => setThumbField(""));
+
+function thumbHtml(dataUrl, cls){
+  if (!dataUrl || !String(dataUrl).startsWith("data:image/")) return "";
+  return `<img class="card-thumb${cls ? " " + cls : ""}" src="${dataUrl}" alt="" draggable="false" loading="lazy">`;
+}
+
 /* ============================= COPY / PASTE ============================= */
 
 let pageClipboard = null;
@@ -1805,7 +1911,7 @@ function copyPage(pageId){
 }
 
 function pageHasContent(p){
-  return !!(p && (p.title || p.bTitle || p.notes ||
+  return !!(p && (p.title || p.bTitle || p.notes || p.thumb ||
     (p.contentType && p.contentType !== "unassigned") ||
     (p.bContentType && p.bContentType !== "unassigned")));
 }
@@ -1903,6 +2009,7 @@ function openDetail(pageId){
   document.getElementById("fWordCount").value = p.wordCount ?? "";
   document.getElementById("fReporter").value = p.reporter || "";
   document.getElementById("fNotes").value = p.notes || "";
+  setThumbField(p.thumb || "");
   document.getElementById("detailOverlay").hidden = false;
 }
 function syncLayoutUI(){
@@ -1965,6 +2072,7 @@ document.getElementById("detailForm").addEventListener("submit", async (e) => {
     wordCount: wc === "" ? null : parseInt(wc, 10),
     reporter: document.getElementById("fReporter").value.trim(),
     notes: document.getElementById("fNotes").value.trim(),
+    thumb: pendingThumb || "",
     layout: wantSpread ? "full" : document.getElementById("fLayout").value,
     bTitle: document.getElementById("fBTitle").value.trim(),
     bSection: document.getElementById("fBSection").value.trim(),
