@@ -587,7 +587,7 @@
      LIGHT THEME (default). Toggle with the sun/moon button in the header.
      ===================================================================== */
   :root.theme-light{
-    --bg:#e7e3da;            /* the "desk" */
+    --bg:#d9d3c7;            /* the "desk" */
     --bg-elevated:#fbfaf7;   /* header, panels, dialogs */
     --card-bg:#f3f0ea;
     --card-bg-hover:#ebe7df;
@@ -613,6 +613,35 @@
   :root.theme-light #toast{color:var(--text);box-shadow:0 4px 14px rgba(0,0,0,0.12);}
   :root.theme-light select, :root.theme-light input, :root.theme-light textarea{color-scheme:light;}
   #themeBtn{min-width:34px;padding-left:8px;padding-right:8px;font-size:15px;line-height:1;}
+
+  /* ---- broken-space (half) pages: same paper / 3D treatment as full pages ---- */
+  .page-card.split-card{background:var(--paper);display:flex;flex-direction:column;}
+  .split-card .split-head{
+    background:transparent;height:26px;padding:0 10px;
+    border-bottom:1px solid rgba(0,0,0,0.08);
+  }
+  .split-card .split-tag{color:var(--ink-faint);font-size:9px;letter-spacing:0.12em;}
+  .split-card .halves{background:rgba(0,0,0,0.10);gap:1px;flex:1;}
+  .split-card .half{padding:0 9px 30px;}
+  .split-card .split-foot{
+    position:absolute;left:0;right:0;bottom:5px;background:transparent;
+    padding:0 26px;text-align:center;pointer-events:none;z-index:1;
+  }
+  .split-card .split-foot .edited-caption{font-size:9px;}
+  .page-card.split-card.side-verso > .folio{left:10px;}
+  .page-card.split-card.side-recto > .folio{right:10px;}
+  .page-card.split-card > .folio{z-index:2;}
+  /* gutter shadow where a half page meets its facing page */
+  .spread.pair > .page-card.split-card::after{
+    content:"";position:absolute;top:0;bottom:0;width:26px;pointer-events:none;z-index:2;
+  }
+  .spread.pair > .page-card.split-card.side-verso::after{
+    right:0;background:linear-gradient(to left, rgba(0,0,0,0.20), rgba(0,0,0,0.04) 12px, transparent 26px);
+  }
+  .spread.pair > .page-card.split-card.side-recto::after{
+    left:0;background:linear-gradient(to right, rgba(0,0,0,0.20), rgba(0,0,0,0.04) 12px, transparent 26px);
+  }
+  .split-card .half .type-band{font-size:8px;letter-spacing:0.03em;padding:4px 6px;margin:0 -9px 8px;}
 </style>
 <script>
   (function(){
@@ -908,7 +937,7 @@ const ADMIN_EMAILS = ["stewart.hawkins@forbes.com.au", "jimhawkins.forbes@gmail.
 
 const CONTENT_TYPES = {
   unassigned:  { label: "Unassigned",  color: "var(--ct-unassigned)" },
-  editorial:   { label: "Editorial",   color: "var(--ct-editorial)" },
+  editorial:   { label: "Editorial Frontrunner", short: "Frontrunner", color: "var(--ct-editorial)" },
   column:      { label: "Editorial Features", short: "Features", color: "var(--ct-column)" },
   forbesLife:  { label: "Editorial Forbes Life", short: "Forbes Life", color: "var(--ct-forbeslife)" },
   international: { label: "International Editorial", short: "International", color: "var(--ct-international)", ink: "#ffffff" },
@@ -1520,9 +1549,9 @@ function adOnFirstHalf(aType, bType){
 
 function splitCardHtml(p){
   return `
-    <div class="page-card split-card" draggable="true" data-page-id="${p.id}">
+    <div class="page-card split-card ${p.number % 2 === 0 ? "side-verso" : "side-recto"}" draggable="true" data-page-id="${p.id}">
       <div class="split-head">
-        <span class="split-tag">½ + ½</span><span class="folio split-folio">${p.number}</span>
+        <span class="split-tag">½ + ½</span>
       </div>
       <div class="card-actions">
         <button class="edit-btn paste-btn" data-paste="${p.id}" title="Paste copied page here">&#128203;</button>
@@ -1540,6 +1569,7 @@ function splitCardHtml(p){
         })()}
       </div>
       ${p.lastEditedBy ? `<div class="split-foot"><span class="edited-caption">Edited by ${escapeHtml(p.lastEditedBy)} · ${timeAgo(p.lastEditedAt)}</span></div>` : ""}
+      <span class="folio">${p.number}</span>
     </div>`;
 }
 
