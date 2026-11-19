@@ -849,6 +849,21 @@
     .page-card .half .page-title,
     .page-card.spread-card .spread-head .page-title{font-size:13.5px;}
   }
+  /* links in notes */
+  .card-notes a{
+    color:var(--ink);font-weight:600;text-decoration:underline;
+    text-decoration-color:rgba(0,0,0,0.35);text-underline-offset:2px;
+    pointer-events:auto;cursor:pointer;
+  }
+  .card-notes a:hover{text-decoration-color:currentColor;}
+  .notes-links{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:7px;}
+  .notes-links .nl-label{font-size:10.5px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-faint);margin-right:2px;}
+  .notes-links a{
+    font-size:12px;color:var(--accent);text-decoration:none;font-weight:600;
+    padding:3px 9px;border-radius:999px;border:1px solid var(--border-light);background:var(--card-bg);
+    max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .notes-links a:hover{border-color:var(--accent);}
 </style>
 <script>
   (function(){
@@ -1025,7 +1040,8 @@
         </div>
         <div class="field">
           <label>Notes</label>
-          <textarea id="fNotes" maxlength="500"></textarea>
+          <textarea id="fNotes" maxlength="1000" placeholder="Paste links straight in — they become clickable on the card"></textarea>
+          <div class="notes-links" id="fNotesLinks" hidden></div>
         </div>
         <div class="field">
           <label>Thumbnail picture / illustration</label>
@@ -1756,10 +1772,48 @@ function reporterHtml(name, compact){
   return `<div class="reporter-line${compact ? " compact" : ""}" title="Reporter">By ${escapeHtml(String(name).trim())}</div>`;
 }
 
+// Turns web addresses in plain text into safe, clickable links (opens in a new tab).
+const URL_RE = /\b((?:https?:\/\/|www\.)[^\s<>"']+)/gi;
+function splitUrl(raw){
+  // Trim trailing punctuation that's usually sentence, not URL: . , ; : ! ? ) ]
+  let url = raw, tail = "";
+  while (/[.,;:!?)\]]$/.test(url)) {
+    if (url.endsWith(")") && (url.split("(").length > url.split(")").length - 1)) break;
+    tail = url.slice(-1) + tail; url = url.slice(0, -1);
+  }
+  return [url, tail];
+}
+function shortUrl(url){
+  let u = url.replace(/^https?:\/\//i, "").replace(/^www\./i, "");
+  return u.length > 34 ? u.slice(0, 32) + "…" : u;
+}
+function linkify(text){
+  let out = "", last = 0;
+  String(text).replace(URL_RE, (m, _g, idx) => {
+    const [url, tail] = splitUrl(m);
+    const href = /^https?:\/\//i.test(url) ? url : "https://" + url;
+    out += escapeHtml(text.slice(last, idx));
+    let host = url.replace(/^https?:\/\//i, "").replace(/^www\./i, "").split(/[/?#]/)[0];
+    out += `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" draggable="false" title="${escapeHtml(href)}">&#128279;&#xFE0E;&nbsp;${escapeHtml(host)}</a>${escapeHtml(tail)}`;
+    last = idx + m.length;
+    return m;
+  });
+  return out + escapeHtml(String(text).slice(last));
+}
+function extractLinks(text){
+  const links = [];
+  String(text || "").replace(URL_RE, (m) => {
+    const [url] = splitUrl(m);
+    links.push(/^https?:\/\//i.test(url) ? url : "https://" + url);
+    return m;
+  });
+  return links;
+}
+
 function notesHtml(notes, compact){
   const t = notes ? String(notes).trim() : "";
   if (!t) return "";
-  return `<div class="card-notes${compact ? " compact" : ""}" title="${escapeHtml(t)}">${escapeHtml(t)}</div>`;
+  return `<div class="card-notes${compact ? " compact" : ""}" title="${escapeHtml(t)}">${linkify(t)}</div>`;
 }
 
 function metaLineHtml(reporter, wc){
@@ -2061,6 +2115,17 @@ async function swapPages(aId, bId){
   toast(`Swapped page ${aData.number} and page ${bData.number}`);
 }
 
+function refreshNotesLinks(){
+  const box = document.getElementById("fNotesLinks");
+  const links = extractLinks(document.getElementById("fNotes").value);
+  box.hidden = !links.length;
+  box.innerHTML = links.length
+    ? `<span class="nl-label">Links</span>` + links.map(h =>
+        `<a href="${escapeHtml(h)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(h)}">&#8599; ${escapeHtml(shortUrl(h))}</a>`).join("")
+    : "";
+}
+document.getElementById("fNotes").addEventListener("input", refreshNotesLinks);
+
 /* ============================= THUMBNAILS ============================= */
 // Pictures are shrunk in the browser and stored inline on the page document
 // (a small WebP/JPEG data URL, typically 20–40 KB), so no Firebase Storage
@@ -2267,6 +2332,7 @@ function openDetail(pageId){
   document.getElementById("fWordCount").value = p.wordCount ?? "";
   document.getElementById("fReporter").value = p.reporter || "";
   document.getElementById("fNotes").value = p.notes || "";
+  refreshNotesLinks();
   setThumbField(p.thumb || "");
   document.getElementById("detailOverlay").hidden = false;
 }
