@@ -72,3 +72,25 @@ was added. The sharp copies are stored in each issue's `pages` collection as doc
 
 No Firebase rules change is needed for this. Pictures added before this feature only have the
 thumbnail; re-add them for a sharp view.
+
+## Backups (admin only)
+
+Open **Team** (top right) → **Backup**.
+
+- **Download backup** saves every issue, page, picture and the team list to a single
+  `flatplan-backup-YYYY-MM-DD.json` file on your device. Do this regularly (every week or two)
+  and keep the file somewhere safe, e.g. Google Drive, Dropbox or email it to yourself.
+  The window shows when you last downloaded one on that device.
+- **Restore from backup…** loads a backup file. By default it only *adds* issues that aren't
+  already there and never touches existing ones. Tick "replace issues that already exist" to
+  roll an issue back to exactly how it was in the backup.
+- Sign-in accounts (passwords) can't be included. After restoring into a brand-new Firebase
+  project, colleagues simply choose **First time here? Create your password** once.
+
+### If the Firebase project is ever lost
+1. Create a new Firebase project (free Spark plan) with Firestore and Email/Password sign-in,
+   add `stewarthawkins.github.io` under Authentication → Settings → Authorised domains, and
+   publish `firestore.rules` (with your admin email in `adminEmail()`).
+2. Put the new project's web config into `firebaseConfig` near the top of the script in
+   `index.html` and upload it.
+3. Sign in as the admin, set your name, open **Team → Restore from backup…** and pick the file.

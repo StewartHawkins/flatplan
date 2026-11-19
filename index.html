@@ -924,6 +924,12 @@
     .viewer-nav.prev{left:6px;} .viewer-nav.next{right:6px;}
     #viewerEdit{display:none;}
   }
+  .backup-actions{display:flex;flex-wrap:wrap;gap:8px;}
+  .backup-actions label.btn{cursor:pointer;margin:0;}
+  .backup-last{font-size:12.5px;color:var(--text-dim);margin:0 0 10px;}
+  .backup-last.warn{color:var(--danger);}
+  #backupStatus{min-height:1.2em;margin-top:10px;}
+  #adminOverlay .modal{max-height:88vh;overflow:auto;}
 </style>
 <script>
   (function(){
@@ -1208,13 +1214,35 @@
 
   <div id="adminOverlay" class="overlay center" hidden>
     <div class="modal">
-      <h2>Team access</h2>
+      <h2>Team &amp; backup</h2>
       <p class="panel-meta">Anyone whose email is listed here (or the admin address) can sign in and edit the flatplan.</p>
       <form id="allowForm" class="row" style="margin-bottom:14px;">
         <input type="email" id="allowEmail" placeholder="colleague@yourmagazine.com" required>
         <button type="submit" class="btn small" style="flex:0 0 auto;">Add</button>
       </form>
       <div id="allowList"></div>
+
+      <h3 class="sub-head">Backup</h3>
+      <p class="panel-meta" style="margin-top:0;">
+        Saves every issue, page, picture and the team list to one file on this device.
+        Keep it somewhere safe. If the Firebase project is ever lost, it can be restored into a new one.
+      </p>
+      <p class="backup-last" id="backupLast"></p>
+      <label class="check-field" style="margin-bottom:10px;">
+        <input type="checkbox" id="bkIncludeSharp" checked>
+        <span>Include sharp picture copies <small>Makes the file bigger. Thumbnails are always included.</small></span>
+      </label>
+      <div class="backup-actions">
+        <button type="button" class="btn" id="backupBtn">&#8681; Download backup</button>
+        <label class="btn secondary" for="restoreFile">&#8679; Restore from backup&hellip;</label>
+        <input type="file" id="restoreFile" accept="application/json,.json" hidden>
+      </div>
+      <label class="check-field" style="margin-top:10px;">
+        <input type="checkbox" id="rsOverwrite">
+        <span>When restoring, replace issues that already exist <small>Off: existing issues are left alone and only missing ones are added.</small></span>
+      </label>
+      <p class="panel-meta" id="backupStatus" aria-live="polite"></p>
+
       <div class="modal-actions">
         <button type="button" class="btn secondary" id="adminClose">Close</button>
       </div>
@@ -1232,7 +1260,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc,
-  collection, query, orderBy, onSnapshot, writeBatch, serverTimestamp, Timestamp
+  collection, query, orderBy, onSnapshot, writeBatch, serverTimestamp, Timestamp, getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* =========================================================================
@@ -2306,6 +2334,184 @@ function thumbHtml(dataUrl, cls){
   return `<span class="card-thumb${cls ? " " + cls : ""}" title="View picture"><img src="${dataUrl}" alt="" draggable="false" loading="lazy"></span>`;
 }
 
+/* ============================= BACKUP & RESTORE (admin) ============================= */
+
+const BACKUP_FORMAT = "flatplan-backup";
+const BACKUP_VERSION = 1;
+
+// Firestore Timestamps can't go into JSON directly, so they're stored as {"__ts": millis}.
+function toPlain(v){
+  if (v instanceof Timestamp) return { __ts: v.toMillis() };
+  if (Array.isArray(v)) return v.map(toPlain);
+  if (v && typeof v === "object") {
+    if (typeof v.toMillis === "function") return { __ts: v.toMillis() };
+    const o = {}; for (const [k, x] of Object.entries(v)) o[k] = toPlain(x); return o;
+  }
+  return v;
+}
+function fromPlain(v){
+  if (Array.isArray(v)) return v.map(fromPlain);
+  if (v && typeof v === "object") {
+    if (Object.keys(v).length === 1 && typeof v.__ts === "number") return Timestamp.fromMillis(v.__ts);
+    const o = {}; for (const [k, x] of Object.entries(v)) o[k] = fromPlain(x); return o;
+  }
+  return v;
+}
+
+function setBackupStatus(msg, isError){
+  const el = document.getElementById("backupStatus");
+  el.textContent = msg || "";
+  el.style.color = isError ? "var(--danger)" : "";
+}
+function refreshLastBackup(){
+  let t = null;
+  try { t = Number(localStorage.getItem("flatplanLastBackup")) || null; } catch (e) {}
+  const el = document.getElementById("backupLast");
+  if (!t) { el.textContent = "No backup downloaded on this device yet."; el.className = "backup-last warn"; return; }
+  const days = Math.floor((Date.now() - t) / 86400000);
+  el.textContent = `Last backup from this device: ${new Date(t).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}` +
+    (days === 0 ? " (today)" : ` (${days} day${days === 1 ? "" : "s"} ago)`);
+  el.className = "backup-last" + (days > 14 ? " warn" : "");
+}
+
+async function buildBackup(includeSharp){
+  const out = {
+    format: BACKUP_FORMAT, version: BACKUP_VERSION,
+    exportedAt: new Date().toISOString(), exportedBy: currentUserName,
+    sourceProject: firebaseConfig.projectId,
+    allowlist: [], members: [], issues: []
+  };
+  setBackupStatus("Reading team list…");
+  (await getDocs(collection(db, "allowlist"))).forEach(d => out.allowlist.push({ id: d.id, data: toPlain(d.data()) }));
+  try {
+    (await getDocs(collection(db, "members"))).forEach(d => out.members.push({ id: d.id, data: toPlain(d.data()) }));
+  } catch (e) { /* display names are optional */ }
+  const issues = await getDocs(collection(db, "issues"));
+  let n = 0, pageCount = 0, imageCount = 0;
+  for (const iss of issues.docs) {
+    n++;
+    setBackupStatus(`Reading issue ${n} of ${issues.size}…`);
+    const entry = { id: iss.id, data: toPlain(iss.data()), pages: [], images: [] };
+    (await getDocs(collection(db, "issues", iss.id, "pages"))).forEach(d => {
+      const data = d.data();
+      if (data.kind === "image") {
+        if (includeSharp) { entry.images.push({ id: d.id, data: toPlain(data) }); imageCount++; }
+      } else {
+        entry.pages.push({ id: d.id, data: toPlain(data) }); pageCount++;
+      }
+    });
+    out.issues.push(entry);
+  }
+  out.counts = { issues: out.issues.length, pages: pageCount, sharpImages: imageCount, team: out.allowlist.length };
+  return out;
+}
+
+document.getElementById("backupBtn").addEventListener("click", async () => {
+  if (!isAdmin) return;
+  const btn = document.getElementById("backupBtn");
+  btn.disabled = true;
+  try {
+    const data = await buildBackup(document.getElementById("bkIncludeSharp").checked);
+    const json = JSON.stringify(data);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const d0 = new Date();
+    const stamp = `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, "0")}-${String(d0.getDate()).padStart(2, "0")}`;
+    a.download = `flatplan-backup-${stamp}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    try { localStorage.setItem("flatplanLastBackup", String(Date.now())); } catch (e) {}
+    refreshLastBackup();
+    const c = data.counts;
+    setBackupStatus(`Backup downloaded: ${c.issues} issue${c.issues === 1 ? "" : "s"}, ${c.pages} pages, ${c.team} team members` +
+      (c.sharpImages ? `, ${c.sharpImages} sharp pictures` : "") + ` · ${(blob.size / 1048576).toFixed(1)} MB`);
+  } catch (err) {
+    console.error(err);
+    setBackupStatus("Couldn't make the backup. Check your connection and try again.", true);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// Commits writes in batches that stay well under Firestore's limits
+// (500 writes and ~10 MB per batch).
+async function commitInChunks(ops, onProgress){
+  let batch = writeBatch(db), count = 0, bytes = 0, done = 0;
+  const flush = async () => {
+    if (!count) return;
+    await batch.commit();
+    done += count; onProgress && onProgress(done, ops.length);
+    batch = writeBatch(db); count = 0; bytes = 0;
+  };
+  for (const [ref, data] of ops) {
+    const size = JSON.stringify(data).length;
+    if (count >= 300 || bytes + size > 3_500_000) await flush();
+    batch.set(ref, data);
+    count++; bytes += size;
+  }
+  await flush();
+}
+
+document.getElementById("restoreFile").addEventListener("change", async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = "";
+  if (!file || !isAdmin) return;
+  let backup;
+  try {
+    backup = JSON.parse(await file.text());
+  } catch (err) {
+    setBackupStatus("That file isn't a Flatplan backup (couldn't read it).", true); return;
+  }
+  if (!backup || backup.format !== BACKUP_FORMAT || !Array.isArray(backup.issues)) {
+    setBackupStatus("That file isn't a Flatplan backup.", true); return;
+  }
+  const overwrite = document.getElementById("rsOverwrite").checked;
+  const existing = new Set((await getDocs(collection(db, "issues"))).docs.map(d => d.id));
+  const toRestore = backup.issues.filter(i => overwrite || !existing.has(i.id));
+  const skipped = backup.issues.length - toRestore.length;
+  const pages = toRestore.reduce((n, i) => n + i.pages.length, 0);
+  const names = toRestore.map(i => i.data && i.data.name).filter(Boolean).slice(0, 6).join(", ");
+  const msg =
+    `Restore from backup made ${new Date(backup.exportedAt).toLocaleString("en-AU")} by ${backup.exportedBy || "unknown"}?\n\n` +
+    `• ${toRestore.length} issue${toRestore.length === 1 ? "" : "s"} (${pages} pages)${names ? ": " + names : ""}\n` +
+    `• ${backup.allowlist.length} team member${backup.allowlist.length === 1 ? "" : "s"} added to the team list\n` +
+    (skipped ? `• ${skipped} issue${skipped === 1 ? "" : "s"} already here will be left alone\n` : "") +
+    (overwrite && toRestore.some(i => existing.has(i.id)) ? `\n⚠ Existing issues with the same name will be REPLACED.` : "");
+  if (!toRestore.length && !backup.allowlist.length) { setBackupStatus("Nothing to restore — every issue in that backup is already here."); return; }
+  if (!window.confirm(msg)) return;
+
+  try {
+    setBackupStatus("Restoring team list…");
+    await commitInChunks(backup.allowlist.map(a => [doc(db, "allowlist", a.id), fromPlain(a.data)]));
+    let n = 0;
+    for (const iss of toRestore) {
+      n++;
+      setBackupStatus(`Restoring issue ${n} of ${toRestore.length}…`);
+      if (overwrite && existing.has(iss.id)) {
+        // Clear pages that aren't in the backup so the issue matches it exactly.
+        const keep = new Set([...iss.pages, ...(iss.images || [])].map(p => p.id));
+        const old = await getDocs(collection(db, "issues", iss.id, "pages"));
+        const dels = old.docs.filter(d => !keep.has(d.id));
+        for (let i = 0; i < dels.length; i += 300) {
+          const b = writeBatch(db);
+          dels.slice(i, i + 300).forEach(d => b.delete(d.ref));
+          await b.commit();
+        }
+      }
+      await setDoc(doc(db, "issues", iss.id), fromPlain(iss.data));
+      const ops = [...iss.pages, ...(iss.images || [])].map(p => [doc(db, "issues", iss.id, "pages", p.id), fromPlain(p.data)]);
+      await commitInChunks(ops, (d, t) => setBackupStatus(`Restoring issue ${n} of ${toRestore.length} — ${d} of ${t} items…`));
+    }
+    setBackupStatus(`Restore complete: ${toRestore.length} issue${toRestore.length === 1 ? "" : "s"}, ${pages} pages, ${backup.allowlist.length} team members.`);
+    toast("Backup restored");
+  } catch (err) {
+    console.error(err);
+    setBackupStatus("The restore stopped part-way (" + (err.code || err.message) + "). It's safe to run it again — nothing will be duplicated.", true);
+  }
+});
+
 /* ============================= PICTURE VIEWER ============================= */
 
 const fullImageCache = new Map();   // fullRef -> data URL
@@ -2762,6 +2968,8 @@ setInterval(renderPresence, 15000);
 
 document.getElementById("adminBtn").addEventListener("click", () => {
   document.getElementById("adminOverlay").hidden = false;
+  refreshLastBackup();
+  setBackupStatus("");
   if (!unsubAllowlist) {
     unsubAllowlist = onSnapshot(collection(db, "allowlist"), (snap) => {
       const list = document.getElementById("allowList");
