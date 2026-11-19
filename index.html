@@ -820,6 +820,16 @@
   .brand{letter-spacing:-0.025em !important;}
   #issueSelect{letter-spacing:-0.015em;}
   .sum-item b, .folio, .meta-wc{font-feature-settings:"tnum";}
+  .sum-item{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;}
+  .sum-dot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:2px;}
+  .sum-sep{width:1px;height:16px;background:var(--border);}
+  @media (max-width:600px){ .sum-sep{display:none;} }
+  .sum-paid{
+    padding:2px 9px;border-radius:999px;
+    background:color-mix(in srgb, var(--ct-advertising) 16%, transparent);
+    border:1px solid color-mix(in srgb, var(--ct-advertising) 45%, transparent);
+    color:var(--text);
+  }
 </style>
 <script>
   (function(){
@@ -1858,15 +1868,32 @@ function renderSummary(pages){
   });
   const total = pages.length;
   let adHalves = 0, assigned = 0;
+  const halvesByType = {};
   const statusCount = {};
   effective.forEach(p => {
     const types = p.layout === "halfV" ? [p.contentType, p.bContentType] : [p.contentType, p.contentType];
-    types.forEach(t => { if (AD_TYPES.includes(t)) adHalves++; });
+    types.forEach(t => {
+      if (AD_TYPES.includes(t)) adHalves++;
+      halvesByType[t || "unassigned"] = (halvesByType[t || "unassigned"] || 0) + 1;
+    });
     if (types.some(t => t && t !== "unassigned")) assigned++;
     const st = p.status || "planned";
     statusCount[st] = (statusCount[st] || 0) + 1;
   });
   const adPct = Math.round(adHalves / (total * 2) * 100);
+  // Page counts (half pages count as ½). "Editorial" = Frontrunner + Features + Forbes Life;
+  // International is counted separately so nothing is double-counted.
+  const pagesOf = (...keys) => keys.reduce((n, k) => n + (halvesByType[k] || 0), 0) / 2;
+  const fmt = (n) => {
+    const whole = Math.floor(n), half = n - whole >= 0.5;
+    return half ? (whole ? `${whole}½` : "½") : String(whole);
+  };
+  const editorialPages = pagesOf("editorial", "column", "forbesLife");
+  const internationalPages = pagesOf("international");
+  const brandVoicePages = pagesOf("promotion");
+  // Paid pages = Advertising + Brand Voice (House Ads are unpaid, so excluded).
+  const paidPages = pagesOf("advertising", "promotion");
+  const paidPct = Math.round(paidPages / total * 100);
   const signed = statusCount.signedoff || 0;
   const bar = Object.entries(STATUSES).map(([k, s]) => {
     const c = statusCount[k] || 0;
@@ -1875,7 +1902,13 @@ function renderSummary(pages){
   el.innerHTML = `
     <span class="sum-item"><b>${total}</b> pages</span>
     <span class="sum-item"><b>${assigned}</b> assigned</span>
-    <span class="sum-item"><b>${adPct}%</b> advertising</span>
+    <span class="sum-sep" aria-hidden="true"></span>
+    <span class="sum-item" title="Editorial Frontrunner, Features and Forbes Life"><i class="sum-dot" style="background:var(--ct-editorial)"></i><b>${fmt(editorialPages)}</b> editorial</span>
+    <span class="sum-item"><i class="sum-dot" style="background:var(--ct-international)"></i><b>${fmt(internationalPages)}</b> international</span>
+    <span class="sum-item"><i class="sum-dot" style="background:var(--ct-promotion)"></i><b>${fmt(brandVoicePages)}</b> brand voice</span>
+    <span class="sum-item"><i class="sum-dot" style="background:var(--ct-advertising)"></i><b>${adPct}%</b> advertising</span>
+    <span class="sum-item sum-paid" title="Advertising + Brand Voice, as a share of all pages (House Ads excluded): ${fmt(paidPages)} of ${total} pages"><b>${paidPct}%</b> paid</span>
+    <span class="sum-sep" aria-hidden="true"></span>
     <span class="sum-item"><b>${signed}</b> of ${total} signed off</span>
     <span class="sum-bar" title="Status of every page">${bar}</span>`;
   el.hidden = false;
