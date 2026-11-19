@@ -31,6 +31,8 @@
     --ct-international:#2343c9; /* International Editorial: deep navy-cobalt */  /* Editorial Forbes Life: soft periwinkle blue */
     --ct-unassigned:#3a4352;
     --st-planned:#8a96a6;
+    --st-interview:#22c7b8;
+    --st-shoot:#ff8a5c;
     --st-drafted:#4d93ff;
     --st-subbed:#ffb02e;
     --st-signedoff:#2bd47d;
@@ -948,6 +950,8 @@ const CONTENT_TYPES = {
 
 const STATUSES = {
   planned:   { label: "Planned",     color: "var(--st-planned)" },
+  interviewConfirmed: { label: "Interview Confirmed", short: "Interview ✓", color: "var(--st-interview)" },
+  shootConfirmed:     { label: "Shoot Confirmed",     short: "Shoot ✓",     color: "var(--st-shoot)" },
   drafted:   { label: "Drafted",     color: "var(--st-drafted)" },
   subbed:    { label: "Subbed",      color: "var(--st-subbed)" },
   signedoff: { label: "Signed off",  color: "var(--st-signedoff)" }
@@ -1517,7 +1521,7 @@ function halfHtml(title, section, typeKey, statusKey, wc, reporter, notes){
       ${wc ? wordCountHtml(wc, true) : ""}
       ${notesHtml(notes, true)}
       <span class="status-badge" style="--sc:${status.color}">
-        <span class="dot" style="background:${status.color}"></span>${escapeHtml(status.label)}
+        <span class="dot" style="background:${status.color}"></span>${escapeHtml(status.short || status.label)}
       </span>
     </div>`;
 }
