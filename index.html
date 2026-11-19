@@ -830,6 +830,25 @@
     border:1px solid color-mix(in srgb, var(--ct-advertising) 45%, transparent);
     color:var(--text);
   }
+  /* ---- ONE headline style on every card (single, half, spread, untitled) ---- */
+  .page-card .page-title,
+  .page-card .half .page-title,
+  .page-card.spread-card .spread-head .page-title{
+    font-family:var(--serif);
+    font-size:15px;font-weight:700;line-height:1.22;letter-spacing:-0.02em;
+    color:var(--ink);font-style:normal;margin-bottom:7px;
+    overflow-wrap:anywhere;
+  }
+  .page-card .page-title.untitled,
+  .page-card .half .page-title.untitled,
+  .page-card.spread-card .spread-head .page-title.untitled{
+    font-weight:500;font-style:italic;color:var(--ink-faint);
+  }
+  @media (max-width:520px){
+    .page-card .page-title,
+    .page-card .half .page-title,
+    .page-card.spread-card .spread-head .page-title{font-size:13.5px;}
+  }
 </style>
 <script>
   (function(){
