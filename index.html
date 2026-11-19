@@ -2332,7 +2332,7 @@ async function loadFull(ref){
   if (!ref) return null;
   if (fullImageCache.has(ref)) return fullImageCache.get(ref);
   try {
-    const snap = await getDoc(doc(db, "issues", currentIssueId, "images", ref));
+    const snap = await getDoc(doc(db, "issues", currentIssueId, "pages", ref));
     const data = snap.exists() ? snap.data().data : null;
     if (data) fullImageCache.set(ref, data);
     return data;
@@ -2614,12 +2614,14 @@ document.getElementById("detailForm").addEventListener("submit", async (e) => {
   let sharpImageFailed = false;
   if (pendingThumb && pendingFull && pendingFullRef) {
     try {
-      await setDoc(doc(db, "issues", currentIssueId, "images", pendingFullRef), {
-        data: pendingFull, by: currentUserName, at: serverTimestamp()
+      // Stored alongside the pages (allowed by the existing rules). It has no "number"
+      // field, so the page-grid listener (ordered by number) never downloads it.
+      await setDoc(doc(db, "issues", currentIssueId, "pages", pendingFullRef), {
+        kind: "image", data: pendingFull, by: currentUserName, at: serverTimestamp()
       });
       fullImageCache.set(pendingFullRef, pendingFull);
     } catch (err) {
-      // Most likely the Firestore rules haven't been updated for images yet.
+      // e.g. offline or a temporary Firestore error — the thumbnail still saves.
       console.warn("Sharp image not saved (thumbnail still saved):", err);
       fullRefToSave = "";
       sharpImageFailed = true;
@@ -2646,7 +2648,7 @@ document.getElementById("detailForm").addEventListener("submit", async (e) => {
   });
   document.getElementById("detailOverlay").hidden = true;
   toast(sharpImageFailed
-    ? "Saved — picture kept as a thumbnail only (the sharp version needs the Firebase rules update in SETUP.md)"
+    ? "Saved — picture kept as a thumbnail only (the sharp version couldn't be saved; try again later)"
     : "Saved");
 });
 

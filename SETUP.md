@@ -62,17 +62,13 @@ Each operator then just visits the same link, taps **First time here? Create you
 Per-page comments, photo/proof thumbnail uploads, PDF export of the whole flatplan, and cloning an issue from a previous one as a starting template. The current version covers the core problem — one live, shared grid everyone can see and edit — without those extras.
 
 
-## Update: sharper pictures in the picture viewer (November 2026)
+## Pictures and the picture viewer (November 2026)
 
-Page pictures are shown on the cards as small thumbnails. Tapping one opens a full-screen
-viewer. To let the viewer show a **sharp** version (saved separately so the grid stays fast),
-the Firestore rules need one extra block. This is a one-time change:
+Page pictures are shown on the cards as small thumbnails (about 15 KB each). Tapping one opens a
+full-screen viewer, which loads a sharper copy (up to 1600 px) saved separately when the picture
+was added. The sharp copies are stored in each issue's `pages` collection as documents with
+`kind: "image"` and **no `number` field** — the page grid only lists documents that have a
+`number`, so these are never downloaded except when someone opens the viewer.
 
-1. Open the [Firebase console](https://console.firebase.google.com/), pick the **flattiev2** project.
-2. Go to **Firestore Database → Rules**.
-3. Replace everything there with the contents of `firestore.rules` from this repo
-   (the new part is the `match /images/{imageId}` block inside `match /issues/{issueId}`).
-4. Click **Publish**.
-
-Until this is done, pictures still work — the viewer just shows the smaller thumbnail.
-Pictures added *before* this update only have the thumbnail; re-add them for a sharp view.
+No Firebase rules change is needed for this. Pictures added before this feature only have the
+thumbnail; re-add them for a sharp view.
