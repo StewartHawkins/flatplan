@@ -864,6 +864,66 @@
     max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   }
   .notes-links a:hover{border-color:var(--accent);}
+
+  /* ---- clickable thumbnails ---- */
+  .card-thumb{cursor:zoom-in;pointer-events:auto;}
+  .card-thumb::before{
+    content:"\2922";position:absolute;right:5px;bottom:5px;z-index:2;
+    width:20px;height:20px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,0.55);color:#fff;font-size:11px;
+    opacity:0;transition:opacity 0.12s;pointer-events:none;
+  }
+  .card-thumb:hover::before{opacity:1;}
+  @media (hover:none){ .card-thumb::before{opacity:0.85;} }
+  #fThumbPreview{cursor:zoom-in;}
+
+  /* ---- full-screen picture viewer ---- */
+  .viewer{
+    position:fixed;inset:0;z-index:200;display:flex;flex-direction:column;
+    background:rgba(12,13,16,0.94);color:#f4f2ee;
+    -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  }
+  .viewer[hidden]{display:none;}
+  body.viewer-open{overflow:hidden;}
+  .viewer-top{display:flex;align-items:center;gap:8px;padding:12px 16px;}
+  .viewer-spacer{flex:1;}
+  .viewer-count{font-size:13px;color:rgba(255,255,255,0.65);font-variant-numeric:tabular-nums;}
+  .viewer-btn{
+    background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.16);color:#fff;
+    font-family:inherit;font-size:13px;font-weight:600;line-height:1;
+    padding:8px 12px;border-radius:8px;text-decoration:none;cursor:pointer;display:inline-flex;align-items:center;
+  }
+  .viewer-btn:hover{background:rgba(255,255,255,0.16);}
+  .viewer-close{font-size:22px;padding:4px 12px;}
+  .viewer-stage{
+    flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;
+    padding:6px 64px;
+  }
+  #viewerImg{
+    max-width:100%;max-height:100%;object-fit:contain;border-radius:3px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.6);background:#fff;
+    transition:filter 0.25s;
+  }
+  #viewerImg.soft{filter:blur(0.3px);}
+  .viewer-nav{
+    position:absolute;top:50%;transform:translateY(-50%);
+    width:46px;height:46px;border-radius:50%;border:0;
+    background:rgba(255,255,255,0.12);color:#fff;font-size:30px;line-height:1;cursor:pointer;
+  }
+  .viewer-nav:hover{background:rgba(255,255,255,0.24);}
+  .viewer-nav.prev{left:12px;}
+  .viewer-nav.next{right:12px;}
+  .viewer-nav[hidden]{display:none;}
+  .viewer-caption{padding:12px 20px 20px;text-align:center;}
+  .viewer-title{font-size:17px;font-weight:700;letter-spacing:-0.015em;}
+  .viewer-sub{font-size:12.5px;color:rgba(255,255,255,0.65);margin-top:4px;}
+  @media (max-width:600px){
+    .viewer-stage{padding:4px 8px;}
+    .viewer-nav{width:38px;height:38px;font-size:24px;background:rgba(0,0,0,0.45);}
+    .viewer-nav.prev{left:6px;} .viewer-nav.next{right:6px;}
+    #viewerEdit{display:none;}
+  }
 </style>
 <script>
   (function(){
@@ -1057,6 +1117,25 @@
         </div>
         <button type="submit" class="btn">Save</button>
       </form>
+    </div>
+  </div>
+
+  <div id="viewer" class="viewer" hidden role="dialog" aria-modal="true" aria-label="Picture viewer">
+    <div class="viewer-top">
+      <span class="viewer-count" id="viewerCount"></span>
+      <span class="viewer-spacer"></span>
+      <a class="viewer-btn" id="viewerDownload" download>&#8681; Download</a>
+      <button class="viewer-btn" id="viewerEdit" type="button">&#9998; Edit page</button>
+      <button class="viewer-btn viewer-close" id="viewerClose" type="button" aria-label="Close">&times;</button>
+    </div>
+    <div class="viewer-stage" id="viewerStage">
+      <button class="viewer-nav prev" id="viewerPrev" type="button" aria-label="Previous picture">&#8249;</button>
+      <img id="viewerImg" alt="">
+      <button class="viewer-nav next" id="viewerNext" type="button" aria-label="Next picture">&#8250;</button>
+    </div>
+    <div class="viewer-caption">
+      <div class="viewer-title" id="viewerTitle"></div>
+      <div class="viewer-sub" id="viewerSub"></div>
     </div>
   </div>
 
@@ -2042,6 +2121,11 @@ function renderGrid(pages){
   grid.querySelectorAll(".page-card").forEach(card => {
     card.addEventListener("click", (e) => {
       if (e.target.closest("button, a, input, select, textarea")) return;
+      if (e.target.closest(".card-thumb")) {
+        const pid = card.querySelector("[data-open]")?.dataset.open || card.dataset.pageId;
+        openViewerForPage(pid);
+        return;
+      }
       const id = card.querySelector("[data-open]")?.dataset.open || card.dataset.pageId;
       openDetail(id);
     });
@@ -2056,7 +2140,7 @@ function renderGrid(pages){
 }
 
 const CONTENT_FIELDS = ["title", "section", "contentType", "status", "notes", "wordCount", "photoCredit", "reporter",
-  "layout", "bTitle", "bSection", "bContentType", "bStatus", "thumb"];
+  "layout", "bTitle", "bSection", "bContentType", "bStatus", "thumb", "fullRef"];
 let pairIndex = {};
 
 function isMergedSpread(pageId){
@@ -2134,6 +2218,8 @@ document.getElementById("fNotes").addEventListener("input", refreshNotesLinks);
 const THUMB_MAX_SIDE = 400;
 const THUMB_MAX_BYTES = 90 * 1024;
 let pendingThumb = "";
+let pendingFull = null;      // new sharp image waiting to be saved (data URL)
+let pendingFullRef = "";     // id of the sharp image linked to this page
 
 function setThumbField(dataUrl){
   pendingThumb = dataUrl || "";
@@ -2158,8 +2244,19 @@ function loadImage(file){
 }
 
 async function shrinkImage(file){
-  const img = await loadImage(file);
-  let side = THUMB_MAX_SIDE;
+  return shrinkLoaded(await loadImage(file), THUMB_MAX_SIDE, THUMB_MAX_BYTES, 0.72);
+}
+
+// Larger, sharper copy for the picture viewer. Stored in its own document so the
+// grid never has to download it. Kept well under Firestore's 1 MiB document limit.
+const FULL_MAX_SIDE = 1600;
+const FULL_MAX_BYTES = 520 * 1024;
+async function shrinkFull(file){
+  return shrinkLoaded(await loadImage(file), FULL_MAX_SIDE, FULL_MAX_BYTES, 0.82);
+}
+
+async function shrinkLoaded(img, maxSide, maxBytes, q0){
+  let side = maxSide;
   for (let attempt = 0; attempt < 6; attempt++) {
     const scale = Math.min(1, side / Math.max(img.naturalWidth, img.naturalHeight));
     const w = Math.max(1, Math.round(img.naturalWidth * scale));
@@ -2170,10 +2267,10 @@ async function shrinkImage(file){
     ctx.fillStyle = "#ffffff";           // flatten transparent PNGs onto white
     ctx.fillRect(0, 0, w, h);
     ctx.drawImage(img, 0, 0, w, h);
-    const quality = attempt < 3 ? 0.72 - attempt * 0.1 : 0.5;
+    const quality = attempt < 3 ? q0 - attempt * 0.1 : 0.5;
     let out = canvas.toDataURL("image/webp", quality);
     if (!out.startsWith("data:image/webp")) out = canvas.toDataURL("image/jpeg", quality);
-    if (out.length * 0.75 <= THUMB_MAX_BYTES) return out;
+    if (out.length * 0.75 <= maxBytes) return out;
     if (attempt >= 2) side = Math.round(side * 0.8);
   }
   throw new Error("That image is too detailed to shrink enough — try a different one");
@@ -2186,19 +2283,143 @@ document.getElementById("fThumbFile").addEventListener("change", async (e) => {
   if (!file.type.startsWith("image/")) { toast("That isn't an image file"); return; }
   document.getElementById("fThumbHint").textContent = "Shrinking…";
   try {
-    setThumbField(await shrinkImage(file));
+    const [thumb, full] = await Promise.all([shrinkImage(file), shrinkFull(file).catch(() => null)]);
+    setThumbField(thumb);
+    pendingFull = full;
+    pendingFullRef = full ? "img_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) : "";
   } catch (err) {
     console.error(err);
     toast(err.message || "Couldn't use that image");
     setThumbField(pendingThumb);
   }
 });
-document.getElementById("fThumbRemove").addEventListener("click", () => setThumbField(""));
+document.getElementById("fThumbRemove").addEventListener("click", () => {
+  setThumbField(""); pendingFull = null; pendingFullRef = "";
+});
+document.getElementById("fThumbPreview").addEventListener("click", () => {
+  if (pendingThumb) openViewerSingle(pendingThumb, pendingFull, pendingFullRef,
+    document.getElementById("fTitle").value.trim() || "Picture");
+});
 
 function thumbHtml(dataUrl, cls){
   if (!dataUrl || !String(dataUrl).startsWith("data:image/")) return "";
-  return `<span class="card-thumb${cls ? " " + cls : ""}"><img src="${dataUrl}" alt="" draggable="false" loading="lazy"></span>`;
+  return `<span class="card-thumb${cls ? " " + cls : ""}" title="View picture"><img src="${dataUrl}" alt="" draggable="false" loading="lazy"></span>`;
 }
+
+/* ============================= PICTURE VIEWER ============================= */
+
+const fullImageCache = new Map();   // fullRef -> data URL
+let viewerList = [];                // [{ pageId, thumb, fullRef, title, sub }]
+let viewerIndex = 0;
+
+function picturesInIssue(){
+  const byNum = new Map(currentPages.map(p => [p.number, p]));
+  return [...currentPages]
+    .sort((a, b) => a.number - b.number)
+    .filter(p => p.thumb && !(p.number % 2 === 1 && byNum.get(p.number - 1)?.spread))  // skip hidden recto of a spread
+    .map(p => {
+      const type = CONTENT_TYPES[p.contentType] || CONTENT_TYPES.unassigned;
+      const pages = p.spread ? `Pages ${p.number}–${p.number + 1}` : `Page ${p.number}`;
+      return {
+        pageId: p.id, thumb: p.thumb, fullRef: p.fullRef || "",
+        title: p.title || "Untitled",
+        sub: [pages, type.label, p.reporter ? "By " + p.reporter : ""].filter(Boolean).join(" · ")
+      };
+    });
+}
+
+async function loadFull(ref){
+  if (!ref) return null;
+  if (fullImageCache.has(ref)) return fullImageCache.get(ref);
+  try {
+    const snap = await getDoc(doc(db, "issues", currentIssueId, "images", ref));
+    const data = snap.exists() ? snap.data().data : null;
+    if (data) fullImageCache.set(ref, data);
+    return data;
+  } catch (err) {
+    console.warn("Couldn't load sharp image", err);
+    return null;
+  }
+}
+
+function showViewerItem(){
+  const item = viewerList[viewerIndex];
+  if (!item) return;
+  const img = document.getElementById("viewerImg");
+  img.src = item.full || item.thumb;
+  img.classList.toggle("soft", !item.full && !fullImageCache.has(item.fullRef));
+  document.getElementById("viewerTitle").textContent = item.title;
+  document.getElementById("viewerSub").textContent = item.sub +
+    (!item.fullRef && !item.full ? " · thumbnail only — re-add the picture for a sharper view" : "");
+  document.getElementById("viewerCount").textContent = viewerList.length > 1 ? `${viewerIndex + 1} / ${viewerList.length}` : "";
+  const many = viewerList.length > 1;
+  document.getElementById("viewerPrev").hidden = !many;
+  document.getElementById("viewerNext").hidden = !many;
+  document.getElementById("viewerEdit").hidden = !item.pageId;
+  const dl = document.getElementById("viewerDownload");
+  dl.href = img.src;
+  dl.download = `flatplan-${(item.title || "picture").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.${img.src.startsWith("data:image/jpeg") ? "jpg" : "webp"}`;
+  if (!item.full && item.fullRef) {
+    const want = viewerIndex;
+    loadFull(item.fullRef).then(data => {
+      if (data && viewerIndex === want && !document.getElementById("viewer").hidden) {
+        img.src = data; img.classList.remove("soft"); dl.href = data;
+      }
+    });
+  }
+}
+
+function openViewer(list, index){
+  if (!list.length) return;
+  viewerList = list; viewerIndex = Math.max(0, Math.min(index, list.length - 1));
+  document.getElementById("viewer").hidden = false;
+  document.body.classList.add("viewer-open");
+  showViewerItem();
+}
+function openViewerForPage(pageId){
+  const list = picturesInIssue();
+  const i = list.findIndex(x => x.pageId === pageId);
+  openViewer(list, i < 0 ? 0 : i);
+}
+function openViewerSingle(thumb, full, fullRef, title){
+  openViewer([{ pageId: null, thumb, full, fullRef, title, sub: "Preview — not saved yet" }], 0);
+}
+function closeViewer(){
+  document.getElementById("viewer").hidden = true;
+  document.body.classList.remove("viewer-open");
+}
+function stepViewer(d){
+  if (viewerList.length < 2) return;
+  viewerIndex = (viewerIndex + d + viewerList.length) % viewerList.length;
+  showViewerItem();
+}
+document.getElementById("viewerClose").addEventListener("click", closeViewer);
+document.getElementById("viewerPrev").addEventListener("click", (e) => { e.stopPropagation(); stepViewer(-1); });
+document.getElementById("viewerNext").addEventListener("click", (e) => { e.stopPropagation(); stepViewer(1); });
+document.getElementById("viewerEdit").addEventListener("click", () => {
+  const id = viewerList[viewerIndex]?.pageId;
+  closeViewer();
+  if (id) openDetail(id);
+});
+document.getElementById("viewerStage").addEventListener("click", (e) => {
+  if (e.target.id === "viewerStage") closeViewer();   // tap the dark background to close
+});
+document.addEventListener("keydown", (e) => {
+  if (document.getElementById("viewer").hidden) return;
+  if (e.key === "Escape") closeViewer();
+  else if (e.key === "ArrowLeft") stepViewer(-1);
+  else if (e.key === "ArrowRight") stepViewer(1);
+});
+(function swipe(){
+  let x0 = null;
+  const stage = document.getElementById("viewerStage");
+  stage.addEventListener("touchstart", (e) => { x0 = e.touches[0].clientX; }, { passive: true });
+  stage.addEventListener("touchend", (e) => {
+    if (x0 === null) return;
+    const dx = e.changedTouches[0].clientX - x0; x0 = null;
+    if (Math.abs(dx) > 50) stepViewer(dx < 0 ? 1 : -1);
+  });
+})();
 
 /* ============================= COPY / PASTE ============================= */
 
@@ -2334,6 +2555,8 @@ function openDetail(pageId){
   document.getElementById("fNotes").value = p.notes || "";
   refreshNotesLinks();
   setThumbField(p.thumb || "");
+  pendingFull = null;
+  pendingFullRef = p.fullRef || "";
   document.getElementById("detailOverlay").hidden = false;
 }
 function syncLayoutUI(){
@@ -2387,6 +2610,21 @@ document.getElementById("detailForm").addEventListener("submit", async (e) => {
   if (pair && !wantSpread && targetId !== pair.verso.id && pair.verso.spread) {
     await updateDoc(doc(db, "issues", currentIssueId, "pages", pair.verso.id), { spread: false });
   }
+  let fullRefToSave = pendingThumb ? pendingFullRef : "";
+  let sharpImageFailed = false;
+  if (pendingThumb && pendingFull && pendingFullRef) {
+    try {
+      await setDoc(doc(db, "issues", currentIssueId, "images", pendingFullRef), {
+        data: pendingFull, by: currentUserName, at: serverTimestamp()
+      });
+      fullImageCache.set(pendingFullRef, pendingFull);
+    } catch (err) {
+      // Most likely the Firestore rules haven't been updated for images yet.
+      console.warn("Sharp image not saved (thumbnail still saved):", err);
+      fullRefToSave = "";
+      sharpImageFailed = true;
+    }
+  }
   await updateDoc(doc(db, "issues", currentIssueId, "pages", targetId), {
     ...extra,
     title: document.getElementById("fTitle").value.trim(),
@@ -2397,6 +2635,7 @@ document.getElementById("detailForm").addEventListener("submit", async (e) => {
     reporter: document.getElementById("fReporter").value.trim(),
     notes: document.getElementById("fNotes").value.trim(),
     thumb: pendingThumb || "",
+    fullRef: fullRefToSave,
     layout: wantSpread ? "full" : document.getElementById("fLayout").value,
     bTitle: document.getElementById("fBTitle").value.trim(),
     bSection: document.getElementById("fBSection").value.trim(),
@@ -2406,7 +2645,9 @@ document.getElementById("detailForm").addEventListener("submit", async (e) => {
     lastEditedAt: serverTimestamp()
   });
   document.getElementById("detailOverlay").hidden = true;
-  toast("Saved");
+  toast(sharpImageFailed
+    ? "Saved — picture kept as a thumbnail only (the sharp version needs the Firebase rules update in SETUP.md)"
+    : "Saved");
 });
 
 /* ============================= USER AVATAR ============================= */

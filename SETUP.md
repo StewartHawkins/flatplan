@@ -60,3 +60,19 @@ Each operator then just visits the same link, taps **First time here? Create you
 ## What's deliberately left for v2
 
 Per-page comments, photo/proof thumbnail uploads, PDF export of the whole flatplan, and cloning an issue from a previous one as a starting template. The current version covers the core problem — one live, shared grid everyone can see and edit — without those extras.
+
+
+## Update: sharper pictures in the picture viewer (November 2026)
+
+Page pictures are shown on the cards as small thumbnails. Tapping one opens a full-screen
+viewer. To let the viewer show a **sharp** version (saved separately so the grid stays fast),
+the Firestore rules need one extra block. This is a one-time change:
+
+1. Open the [Firebase console](https://console.firebase.google.com/), pick the **flattiev2** project.
+2. Go to **Firestore Database → Rules**.
+3. Replace everything there with the contents of `firestore.rules` from this repo
+   (the new part is the `match /images/{imageId}` block inside `match /issues/{issueId}`).
+4. Click **Publish**.
+
+Until this is done, pictures still work — the viewer just shows the smaller thumbnail.
+Pictures added *before* this update only have the thumbnail; re-add them for a sharp view.
