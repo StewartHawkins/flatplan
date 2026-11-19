@@ -688,6 +688,9 @@
   .page-card > *:not(.card-thumb):not(.greek):not(.folio):not(.card-actions){flex-shrink:0;}
   .page-card .card-thumb ~ .card-notes{-webkit-line-clamp:2;}
   .card-thumb.half-thumb{min-height:40px;}
+  /* thumbnails: no white border, keep the shadow and inner depth */
+  .card-thumb, .card-thumb.half-thumb{padding:0;background:transparent;}
+  .card-thumb::after, .card-thumb.half-thumb::after{inset:0;}
 </style>
 <script>
   (function(){
