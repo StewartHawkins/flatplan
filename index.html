@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#10141a">
 <title>Flatplan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" crossorigin="anonymous">
 <link id="manifestLink" rel="manifest">
 <style>
   :root{
@@ -31,6 +34,7 @@
     --ct-international:#2343c9; /* International Editorial: deep navy-cobalt */  /* Editorial Forbes Life: soft periwinkle blue */
     --ct-unassigned:#3a4352;
     --st-planned:#8a96a6;
+    --st-commissioned:#a78bfa;
     --st-interview:#22c7b8;
     --st-shoot:#ff8a5c;
     --st-drafted:#4d93ff;
@@ -42,7 +46,9 @@
   body{
     background:var(--bg);
     color:var(--text);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-feature-settings:"cv11","ss03";   /* Inter: single-storey a, rounder quotes */
+    -webkit-font-smoothing:antialiased;
     min-height:100vh;
   }
   button{font-family:inherit;cursor:pointer;}
@@ -469,7 +475,7 @@
     --ink:#16181d;
     --ink-soft:#4a4d55;
     --ink-faint:#8a8780;
-    --serif:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; /* card type: sans-serif */
+    --serif:"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; /* card type: Inter */
   }
   #gridContainer{gap:28px 30px;}
   .spread{background:none;padding:0;gap:0;border-radius:2px;box-shadow:0 8px 18px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.4);}
@@ -691,6 +697,129 @@
   /* thumbnails: no white border, keep the shadow and inner depth */
   .card-thumb, .card-thumb.half-thumb{padding:0;background:transparent;}
   .card-thumb::after, .card-thumb.half-thumb::after{inset:0;}
+
+  /* =====================================================================
+     POLISH PASS — header, legend, issue summary, card chrome
+     ===================================================================== */
+  header{
+    position:sticky;top:0;z-index:20;
+    padding:10px 20px;gap:10px;min-height:58px;
+    box-shadow:0 1px 0 var(--border), 0 4px 14px rgba(0,0,0,0.06);
+    border-bottom:0;
+  }
+  .brand{
+    display:flex;align-items:center;gap:9px;
+    font-size:17px !important;font-weight:800;letter-spacing:-0.01em !important;
+    color:var(--text) !important;
+  }
+  .brand-mark{display:inline-flex;gap:1px;filter:drop-shadow(0 1px 1px rgba(0,0,0,0.25));}
+  .brand-mark i{display:block;width:10px;height:14px;background:var(--accent);border-radius:1px;}
+  .brand-mark i:first-child{border-radius:2px 0 0 2px;opacity:0.75;}
+  .brand-mark i:last-child{border-radius:0 2px 2px 0;}
+  .hdr-divider{width:1px;height:24px;background:var(--border);margin:0 4px;}
+  .issue-picker{position:relative;}
+  #issueSelect{
+    appearance:none;-webkit-appearance:none;
+    background:transparent;border:1px solid transparent;
+    font-size:16px;font-weight:700;color:var(--text);
+    padding:6px 28px 6px 8px;border-radius:7px;max-width:260px;cursor:pointer;
+    background-image:linear-gradient(45deg, transparent 50%, var(--text-dim) 50%), linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
+    background-position:calc(100% - 15px) 52%, calc(100% - 10px) 52%;
+    background-size:5px 5px, 5px 5px;background-repeat:no-repeat;
+  }
+  #issueSelect:hover{background-color:var(--card-bg);border-color:var(--border);}
+  .btn.ghost{background:transparent;border:1px solid transparent;color:var(--text-dim);font-weight:600;}
+  .btn.ghost:hover{background:var(--card-bg);color:var(--text);border-color:var(--border);}
+  .btn.icon-only{min-width:34px;justify-content:center;padding-left:8px;padding-right:8px;}
+  .header-right{gap:4px;}
+  .user-chip{display:flex;align-items:center;gap:7px;padding:0 4px;}
+  .user-avatar{
+    width:26px;height:26px;border-radius:50%;
+    background:var(--accent);color:#fff;font-size:12px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .user-name{font-size:13px;font-weight:600;color:var(--text);}
+
+  .legend{
+    gap:8px 28px;padding:9px 20px;font-size:12px;
+    background:var(--bg-elevated);border-bottom:1px solid var(--border);
+  }
+  .legend-block{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .legend-label{
+    font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;
+    color:var(--text-faint);
+  }
+  .legend-group{gap:4px 14px;}
+  .legend-item{color:var(--text-dim);font-weight:500;}
+  .swatch{width:10px;height:10px;border-radius:3px;}
+  .legend .dot{width:7px;height:7px;}
+
+  .issue-summary{
+    display:flex;align-items:center;flex-wrap:wrap;gap:6px 22px;
+    padding:8px 20px;font-size:12.5px;color:var(--text-dim);
+    background:var(--bg-elevated);border-bottom:1px solid var(--border);
+  }
+  .issue-summary[hidden]{display:none;}
+  .sum-item b{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums;margin-right:2px;}
+  .sum-bar{
+    display:flex;flex:1;min-width:140px;max-width:360px;height:7px;border-radius:4px;overflow:hidden;
+    background:var(--border);gap:1px;margin-left:auto;
+  }
+  .sum-bar span{display:block;height:100%;}
+
+  .clip-bar{padding:7px 20px;font-size:12.5px;}
+
+  #gridContainer{padding:30px 28px 48px;}
+
+  /* card chrome: action icons appear on hover on desktop; always on touch screens */
+  @media (hover:hover){
+    .page-card .card-actions{opacity:0;transition:opacity 0.12s;}
+    .page-card:hover .card-actions,
+    .page-card:focus-within .card-actions{opacity:1;}
+    body.has-clip .page-card .card-actions{opacity:1;}
+    .page-card > .type-band, .spread-card .type-band{padding-right:13px;}
+    .page-card:hover > .type-band{padding-right:54px;}
+    body.has-clip .page-card > .type-band{padding-right:76px;}
+  }
+
+  .meta-line{
+    display:flex;flex-wrap:wrap;align-items:baseline;gap:0 6px;
+    font-size:11.5px;color:var(--ink-soft);margin:0 0 8px;line-height:1.35;
+  }
+  .meta-by{font-weight:600;color:var(--ink);opacity:0.8;}
+  .meta-sep{opacity:0.5;}
+  .meta-wc{font-variant-numeric:tabular-nums;}
+  .edited-caption{font-size:9.5px;opacity:0.85;}
+  :root.theme-light .btn.ghost{color:var(--text-dim);}
+  :root.theme-light .btn.ghost:hover{color:var(--text);}
+  @media (max-width:600px){
+    header{padding:8px 12px;gap:6px;}
+    .hdr-divider{display:none;}
+    .user-name{display:none;}
+    #issueSelect{font-size:15px;max-width:170px;}
+    .sum-bar{margin-left:0;max-width:none;flex-basis:100%;}
+    .issue-summary{gap:4px 14px;padding:8px 12px;}
+    .legend{padding:8px 12px;}
+  }
+  .meta-line{flex-direction:column;align-items:flex-start;gap:1px;}
+  .meta-sep{display:none;}
+  .edited-caption{display:block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .status-badge{white-space:nowrap;}
+  @media (max-width:600px){
+    header{position:static;row-gap:4px;}
+    .brand-name{display:none;}
+    #screenshotBtn .lbl{display:none;}
+    .btn.small{padding-left:9px;padding-right:9px;}
+    .header-right{flex-wrap:wrap;}
+    .page-card .status-badge{font-size:8.5px;padding:2px 6px;}
+    .split-card .split-foot{display:none;}
+  }
+  /* Inter tuning */
+  .page-title{letter-spacing:-0.022em;font-weight:700;}
+  .spread-head .page-title{letter-spacing:-0.028em;font-weight:800;}
+  .brand{letter-spacing:-0.025em !important;}
+  #issueSelect{letter-spacing:-0.015em;}
+  .sum-item b, .folio, .meta-wc{font-feature-settings:"tnum";}
 </style>
 <script>
   (function(){
@@ -754,26 +883,31 @@
 
   <div id="appScreen" hidden>
     <header>
-      <h1>FLATPLAN</h1>
-      <select id="issueSelect"></select>
-      <button class="btn small secondary" id="newIssueBtn" hidden>+ New issue</button>
-      <button class="btn small secondary" id="pagesBtn" hidden title="Add or remove pages in this issue">&plusmn; Pages</button>
+      <h1 class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i></span><span class="brand-name">Flatplan</span></h1>
+      <span class="hdr-divider" aria-hidden="true"></span>
+      <div class="issue-picker">
+        <select id="issueSelect" aria-label="Issue"></select>
+      </div>
+      <button class="btn small ghost" id="newIssueBtn" hidden>+ New issue</button>
+      <button class="btn small ghost" id="pagesBtn" hidden title="Add or remove pages in this issue">&plusmn; Pages</button>
       <div class="spacer"></div>
       <div class="presence-row" id="presenceRow"></div>
       <div class="header-right">
-        <span class="user-name" id="currentUserLabel"></span>
-        <button class="btn small secondary" id="screenshotBtn" title="Download the current flatplan as a PNG image">&#128247; Download PNG</button>
-        <button class="btn small secondary" id="adminBtn" hidden>Team</button>
-        <button class="btn small secondary" id="themeBtn" title="Switch light / dark"></button>
-        <button class="btn small secondary" id="signOutBtn">Sign out</button>
+        <button class="btn small secondary" id="screenshotBtn" title="Download the current flatplan as a PNG image">&#8681;<span class="lbl"> Export PNG</span></button>
+        <button class="btn small ghost" id="adminBtn" hidden>Team</button>
+        <button class="btn small ghost icon-only" id="themeBtn" title="Switch light / dark"></button>
+        <span class="hdr-divider" aria-hidden="true"></span>
+        <span class="user-chip"><span class="user-avatar" id="userAvatar"></span><span class="user-name" id="currentUserLabel"></span></span>
+        <button class="btn small ghost" id="signOutBtn">Sign out</button>
       </div>
     </header>
     <div id="captureArea">
       <div class="capture-title"><h2 id="captureIssueName"></h2><p id="captureMeta"></p></div>
       <div class="legend">
-        <div class="legend-group" id="legendTypes"></div>
-        <div class="legend-group" id="legendStatuses"></div>
+        <div class="legend-block"><span class="legend-label">Sections</span><div class="legend-group" id="legendTypes"></div></div>
+        <div class="legend-block"><span class="legend-label">Status</span><div class="legend-group" id="legendStatuses"></div></div>
       </div>
+      <div class="issue-summary" id="issueSummary" hidden></div>
       <div class="clip-bar" id="clipBar" hidden>
         <span>&#128203; Copied <strong id="clipLabel"></strong></span>
         <span class="hint">Tap &#128203; on any page to paste it there</span>
@@ -1009,6 +1143,7 @@ const CONTENT_TYPES = {
 
 const STATUSES = {
   planned:   { label: "Planned",     color: "var(--st-planned)" },
+  commissioned:       { label: "Commissioned",        short: "Commissioned", color: "var(--st-commissioned)" },
   interviewConfirmed: { label: "Interview Confirmed", short: "Interview ✓", color: "var(--st-interview)" },
   shootConfirmed:     { label: "Shoot Confirmed",     short: "Shoot ✓",     color: "var(--st-shoot)" },
   drafted:   { label: "Drafted",     color: "var(--st-drafted)" },
@@ -1598,6 +1733,14 @@ function notesHtml(notes, compact){
   return `<div class="card-notes${compact ? " compact" : ""}" title="${escapeHtml(t)}">${escapeHtml(t)}</div>`;
 }
 
+function metaLineHtml(reporter, wc){
+  const name = reporter ? String(reporter).trim() : "";
+  const n = Number(wc);
+  const words = wc && n > 0 ? `${n.toLocaleString("en-AU")} words` : "";
+  if (!name && !words) return "";
+  return `<div class="meta-line">${name ? `<span class="meta-by">By ${escapeHtml(name)}</span>` : ""}${name && words ? `<span class="meta-sep">·</span>` : ""}${words ? `<span class="meta-wc">${words}</span>` : ""}</div>`;
+}
+
 function wordCountHtml(wc, compact){
   const n = Number(wc);
   if (!wc || !n || n <= 0) return "";
@@ -1656,8 +1799,7 @@ function spreadCardHtml(p, recto){
       </div>
       <div class="spread-pages">
         <div class="verso">
-          ${reporterHtml(p.reporter)}
-          ${wordCountHtml(p.wordCount)}
+          ${metaLineHtml(p.reporter, p.wordCount)}
           ${notesHtml(p.notes)}
         </div>
         <div class="recto">
@@ -1691,8 +1833,7 @@ function pageCardHtml(p, recto){
       </div>
       ${p.section ? `<div class="page-section">${escapeHtml(p.section)}</div>` : ""}
       <div class="${titleClass}">${title}</div>
-      ${reporterHtml(p.reporter)}
-      ${wordCountHtml(p.wordCount)}
+      ${metaLineHtml(p.reporter, p.wordCount)}
       ${thumbHtml(p.thumb)}
       ${notesHtml(p.notes)}
       ${p.title || p.thumb ? "" : `<div class="greek" aria-hidden="true"></div>`}
@@ -1706,7 +1847,42 @@ function pageCardHtml(p, recto){
     </div>`;
 }
 
+function renderSummary(pages){
+  const el = document.getElementById("issueSummary");
+  if (!pages || !pages.length) { el.hidden = true; return; }
+  // A merged spread's right-hand page counts with its left-hand page.
+  const byNum = new Map(pages.map(p => [p.number, p]));
+  const effective = pages.map(p => {
+    const v = (p.number % 2 === 1 && byNum.get(p.number - 1)?.spread) ? byNum.get(p.number - 1) : p;
+    return v;
+  });
+  const total = pages.length;
+  let adHalves = 0, assigned = 0;
+  const statusCount = {};
+  effective.forEach(p => {
+    const types = p.layout === "halfV" ? [p.contentType, p.bContentType] : [p.contentType, p.contentType];
+    types.forEach(t => { if (AD_TYPES.includes(t)) adHalves++; });
+    if (types.some(t => t && t !== "unassigned")) assigned++;
+    const st = p.status || "planned";
+    statusCount[st] = (statusCount[st] || 0) + 1;
+  });
+  const adPct = Math.round(adHalves / (total * 2) * 100);
+  const signed = statusCount.signedoff || 0;
+  const bar = Object.entries(STATUSES).map(([k, s]) => {
+    const c = statusCount[k] || 0;
+    return c ? `<span style="flex:${c};background:${s.color}" title="${escapeHtml(s.label)}: ${c}"></span>` : "";
+  }).join("");
+  el.innerHTML = `
+    <span class="sum-item"><b>${total}</b> pages</span>
+    <span class="sum-item"><b>${assigned}</b> assigned</span>
+    <span class="sum-item"><b>${adPct}%</b> advertising</span>
+    <span class="sum-item"><b>${signed}</b> of ${total} signed off</span>
+    <span class="sum-bar" title="Status of every page">${bar}</span>`;
+  el.hidden = false;
+}
+
 function renderGrid(pages){
+  renderSummary(pages);
   const grid = document.getElementById("gridContainer");
   if (pages.length === 0) {
     grid.innerHTML = `<p class="empty-state">This issue has no pages.</p>`;
@@ -2114,6 +2290,19 @@ document.getElementById("detailForm").addEventListener("submit", async (e) => {
   document.getElementById("detailOverlay").hidden = true;
   toast("Saved");
 });
+
+/* ============================= USER AVATAR ============================= */
+(function watchName(){
+  const label = document.getElementById("currentUserLabel");
+  const avatar = document.getElementById("userAvatar");
+  const sync = () => {
+    const n = (label.textContent || "").trim();
+    avatar.textContent = n ? n.charAt(0).toUpperCase() : "";
+    avatar.hidden = !n;
+  };
+  new MutationObserver(sync).observe(label, { childList: true, characterData: true, subtree: true });
+  sync();
+})();
 
 /* ============================= THEME (light / dark) ============================= */
 
