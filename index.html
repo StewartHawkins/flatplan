@@ -930,6 +930,12 @@
   .backup-last.warn{color:var(--danger);}
   #backupStatus{min-height:1.2em;margin-top:10px;}
   #adminOverlay .modal{max-height:88vh;overflow:auto;}
+  /* drag-to-move insertion line */
+  .page-card.drop-before, .page-card.drop-after{outline:none;}
+  .page-card.drop-before, .page-card.drop-after{z-index:6;}
+  .page-card.drop-before{box-shadow:inset 6px 0 0 #f2a900, -4px 0 0 #f2a900, -4px 0 14px rgba(242,169,0,0.65) !important;}
+  .page-card.drop-after{box-shadow:inset -6px 0 0 #f2a900, 4px 0 0 #f2a900, 4px 0 14px rgba(242,169,0,0.65) !important;}
+  .page-card.dragging{opacity:0.35;}
 </style>
 <script>
   (function(){
@@ -2122,18 +2128,30 @@ function renderGrid(pages){
       e.dataTransfer.setData("text/plain", card.dataset.pageId);
       card.classList.add("dragging");
     });
-    card.addEventListener("dragend", () => card.classList.remove("dragging"));
+    card.addEventListener("dragend", () => {
+      card.classList.remove("dragging");
+      grid.querySelectorAll(".drop-before, .drop-after").forEach(c => c.classList.remove("drop-before", "drop-after"));
+    });
+    // Show a gold insertion line on the left or right edge, depending on which
+    // half of the card the pointer is over.
+    const sideOf = (e) => {
+      const r = card.getBoundingClientRect();
+      return (e.clientX - r.left) < r.width / 2 ? "before" : "after";
+    };
     card.addEventListener("dragover", (e) => {
       e.preventDefault();
-      card.classList.add("drag-over");
+      const side = sideOf(e);
+      card.classList.toggle("drop-before", side === "before");
+      card.classList.toggle("drop-after", side === "after");
     });
-    card.addEventListener("dragleave", () => card.classList.remove("drag-over"));
+    card.addEventListener("dragleave", () => card.classList.remove("drop-before", "drop-after"));
     card.addEventListener("drop", (e) => {
       e.preventDefault();
-      card.classList.remove("drag-over");
+      const side = sideOf(e);
+      card.classList.remove("drop-before", "drop-after");
       const sourceId = e.dataTransfer.getData("text/plain");
       const targetId = card.dataset.pageId;
-      if (sourceId && sourceId !== targetId) handleDrop(sourceId, targetId);
+      if (sourceId) movePages(sourceId, targetId, side);
     });
   });
 
@@ -2145,7 +2163,7 @@ function renderGrid(pages){
   });
 
   // Tapping anywhere on a card (except its buttons) opens the edit panel.
-  // A drag never fires a click, so this doesn't interfere with drag-to-swap.
+  // A drag never fires a click, so this doesn't interfere with drag-to-move.
   grid.querySelectorAll(".page-card").forEach(card => {
     card.addEventListener("click", (e) => {
       if (e.target.closest("button, a, input, select, textarea")) return;
@@ -2174,6 +2192,62 @@ let pairIndex = {};
 function isMergedSpread(pageId){
   const pair = pairIndex[pageId];
   return !!(pair && pair.verso.spread);
+}
+
+// Drag-and-drop now MOVES pages: the dragged page (or spread) is slotted in
+// before/after the page it's dropped on, and everything in between shifts along.
+async function movePages(sourceId, targetId, side){
+  const sorted = [...currentPages].sort((a, b) => a.number - b.number);
+  const byId = new Map(sorted.map(p => [p.id, p]));
+  const src = byId.get(sourceId), tgt = byId.get(targetId);
+  if (!src || !tgt) return;
+
+  // What's being moved: a merged spread moves as its two pages.
+  const srcPair = isMergedSpread(sourceId) ? pairIndex[sourceId] : null;
+  const unit = srcPair ? [srcPair.verso, srcPair.recto] : [src];
+  const unitIds = new Set(unit.map(p => p.id));
+
+  // Where it lands: dropping on a merged spread means before/after the whole spread.
+  const tgtPair = isMergedSpread(targetId) ? pairIndex[targetId] : null;
+  const anchor = side === "before" ? (tgtPair ? tgtPair.verso : tgt) : (tgtPair ? tgtPair.recto : tgt);
+  if (unitIds.has(anchor.id)) return;               // dropped on itself
+
+  const rest = sorted.filter(p => !unitIds.has(p.id));
+  let at = rest.findIndex(p => p.id === anchor.id);
+  if (side === "after") at += 1;
+  const ordered = [...rest.slice(0, at), ...unit, ...rest.slice(at)];
+  if (ordered.every((p, i) => p.id === sorted[i].id)) return;   // no change
+
+  const newNum = new Map(ordered.map((p, i) => [p.id, i + 1]));
+  const firstNew = newNum.get(unit[0].id);
+
+  if (srcPair && firstNew % 2 === 1) {
+    toast("A spread has to start on a left-hand (even) page — drop it next to another pair of facing pages");
+    return;
+  }
+
+  // Warn if other spreads would end up straddling the wrong pages.
+  const broken = sorted.filter(p => p.spread && !unitIds.has(p.id)).filter(v => {
+    const r = sorted.find(x => x.number === v.number + 1);
+    const n = newNum.get(v.id);
+    return !(n % 2 === 0 && r && newNum.get(r.id) === n + 1);
+  });
+  if (broken.length && !window.confirm(
+    `Moving this shifts the pages in between by ${unit.length === 1 ? "one" : unit.length}, so ` +
+    (broken.length === 1
+      ? `the spread on pages ${broken[0].number}–${broken[0].number + 1} would no longer face each other and will be split into two pages.`
+      : `${broken.length} spreads (${broken.map(v => `${v.number}–${v.number + 1}`).join(", ")}) would no longer face each other and will be split.`) +
+    `\n\nMove anyway?`)) return;
+
+  const fromLabel = unit.length === 2 ? `pages ${unit[0].number}–${unit[1].number}` : `page ${src.number}`;
+  const toLabel = unit.length === 2 ? `pages ${firstNew}–${firstNew + 1}` : `page ${firstNew}`;
+  try {
+    await applyPageOrder(ordered, []);
+    toast(`Moved ${fromLabel} to ${toLabel}`);
+  } catch (err) {
+    console.error(err);
+    toast("Couldn't move the page. Check your connection and try again.");
+  }
 }
 
 function handleDrop(sourceId, targetId){
