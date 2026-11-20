@@ -936,6 +936,20 @@
   .page-card.drop-before{box-shadow:inset 6px 0 0 #f2a900, -4px 0 0 #f2a900, -4px 0 14px rgba(242,169,0,0.65) !important;}
   .page-card.drop-after{box-shadow:inset -6px 0 0 #f2a900, 4px 0 0 #f2a900, 4px 0 14px rgba(242,169,0,0.65) !important;}
   .page-card.dragging{opacity:0.35;}
+
+  /* ---- locks & swap ---- */
+  .lock-badge{
+    position:absolute;bottom:4px;z-index:2;
+    font-size:9px;font-weight:700;letter-spacing:0.04em;line-height:1;
+    padding:2px 6px 2px 4px;border-radius:999px;
+    background:rgba(0,0,0,0.10);color:var(--ink);
+  }
+  .page-card.side-verso > .lock-badge{left:26px;}
+  .page-card.side-recto > .lock-badge{right:26px;}
+  .page-card.drop-swap{outline:3px dashed #f2a900 !important;outline-offset:-3px;z-index:6;}
+  .swap-tool{display:inline-flex;gap:4px;align-items:center;margin-left:auto;}
+  .swap-tool input{width:64px;padding:5px 8px;font-size:13px;}
+  .lock-note{margin:-4px 0 12px;}
 </style>
 <script>
   (function(){
@@ -1041,6 +1055,10 @@
       <div class="panel-tools">
         <button type="button" class="btn small secondary" id="copyPageBtn">&#10697; Copy page</button>
         <button type="button" class="btn small secondary" id="pastePageBtn" hidden>&#128203; Paste</button>
+        <span class="swap-tool">
+          <input type="number" id="swapWith" min="1" placeholder="page" aria-label="Swap with page number">
+          <button type="button" class="btn small secondary" id="swapBtn">&#8644; Swap</button>
+        </span>
       </div>
       <form id="detailForm">
         <label class="check-field" id="spreadField" hidden>
@@ -1048,6 +1066,12 @@
           <span><span id="spreadLabel">Double-page spread</span>
             <small id="spreadHint">Merges the two facing pages into one wide card.</small></span>
         </label>
+        <label class="check-field" id="lockField">
+          <input type="checkbox" id="fLocked">
+          <span>&#128274; Lock this page in position
+            <small id="lockHint">When other pages are moved, this one stays put and they flow around it.</small></span>
+        </label>
+        <p class="panel-meta lock-note" id="lockSpreadNote" hidden>&#128274; Spreads always stay put when other pages are moved.</p>
         <div class="field" id="layoutField">
           <label>Layout</label>
           <select id="fLayout">
@@ -1973,7 +1997,14 @@ function splitCardHtml(p){
       </div>
       ${p.lastEditedBy ? `<div class="split-foot"><span class="edited-caption">Edited by ${escapeHtml(p.lastEditedBy)} · ${timeAgo(p.lastEditedAt)}</span></div>` : ""}
       <span class="folio">${p.number}</span>
+      ${lockBadgeHtml(p)}
     </div>`;
+}
+
+function lockBadgeHtml(p){
+  if (!pinnedIds.has(p.id) || p.spread) return "";
+  const why = p.locked === true ? "Locked in position" : "Cover — locked in position by default";
+  return `<span class="lock-badge" title="${why}">&#128274; Locked</span>`;
 }
 
 function spreadCardHtml(p, recto){
@@ -2040,6 +2071,7 @@ function pageCardHtml(p, recto){
         ${p.lastEditedBy ? `<span class="edited-caption">Edited by ${escapeHtml(p.lastEditedBy)} · ${timeAgo(p.lastEditedAt)}</span>` : ""}
       </div>
       <span class="folio">${p.number}</span>
+      ${lockBadgeHtml(p)}
     </div>`;
 }
 
@@ -2102,6 +2134,7 @@ function renderSummary(pages){
 
 function renderGrid(pages){
   renderSummary(pages);
+  pinnedIds = computePinned(pages);
   const grid = document.getElementById("gridContainer");
   if (pages.length === 0) {
     grid.innerHTML = `<p class="empty-state">This issue has no pages.</p>`;
@@ -2130,7 +2163,7 @@ function renderGrid(pages){
     });
     card.addEventListener("dragend", () => {
       card.classList.remove("dragging");
-      grid.querySelectorAll(".drop-before, .drop-after").forEach(c => c.classList.remove("drop-before", "drop-after"));
+      grid.querySelectorAll(".drop-before, .drop-after, .drop-swap").forEach(c => c.classList.remove("drop-before", "drop-after", "drop-swap"));
     });
     // Show a gold insertion line on the left or right edge, depending on which
     // half of the card the pointer is over.
@@ -2140,18 +2173,21 @@ function renderGrid(pages){
     };
     card.addEventListener("dragover", (e) => {
       e.preventDefault();
+      // Hold Shift to swap instead of move.
+      const swap = e.shiftKey;
       const side = sideOf(e);
-      card.classList.toggle("drop-before", side === "before");
-      card.classList.toggle("drop-after", side === "after");
+      card.classList.toggle("drop-swap", swap);
+      card.classList.toggle("drop-before", !swap && side === "before");
+      card.classList.toggle("drop-after", !swap && side === "after");
     });
-    card.addEventListener("dragleave", () => card.classList.remove("drop-before", "drop-after"));
+    card.addEventListener("dragleave", () => card.classList.remove("drop-before", "drop-after", "drop-swap"));
     card.addEventListener("drop", (e) => {
       e.preventDefault();
       const side = sideOf(e);
-      card.classList.remove("drop-before", "drop-after");
+      card.classList.remove("drop-before", "drop-after", "drop-swap");
       const sourceId = e.dataTransfer.getData("text/plain");
       const targetId = card.dataset.pageId;
-      if (sourceId) movePages(sourceId, targetId, side);
+      if (sourceId) movePages(sourceId, targetId, side, e.shiftKey);
     });
   });
 
@@ -2194,56 +2230,102 @@ function isMergedSpread(pageId){
   return !!(pair && pair.verso.spread);
 }
 
-// Drag-and-drop now MOVES pages: the dragged page (or spread) is slotted in
-// before/after the page it's dropped on, and everything in between shifts along.
-async function movePages(sourceId, targetId, side){
+// ---------- Locked ("pinned") pages ----------
+// A pinned page keeps its page number when OTHER pages are moved: single pages flow
+// around it. Pinned = merged spreads (always), pages locked by the user, and by
+// default the front cover (page 1) and back cover (last page) unless unlocked.
+let pinnedIds = new Set();
+
+function computePinned(pages){
+  const sorted = [...pages].sort((a, b) => a.number - b.number);
+  const total = sorted.length;
+  const byNum = new Map(sorted.map(p => [p.number, p]));
+  const set = new Set();
+  sorted.forEach(p => {
+    const rectoOfSpread = p.number % 2 === 1 && byNum.get(p.number - 1)?.spread;
+    if (p.spread || rectoOfSpread) { set.add(p.id); return; }
+    if (p.locked === true) { set.add(p.id); return; }
+    if (p.locked === false) return;
+    if (p.number === 1 || p.number === total) set.add(p.id);
+  });
+  return set;
+}
+function isDefaultLockPosition(p){
+  const total = currentPages.length;
+  return p.number === 1 || p.number === total;
+}
+
+// Drag-and-drop MOVES pages: the dragged page (or spread) is slotted in before/after
+// the page it's dropped on. Pages in between shift along, skipping over pinned pages
+// (spreads and locked pages), which stay exactly where they are.
+async function movePages(sourceId, targetId, side, asSwap){
+  if (asSwap) { if (sourceId !== targetId) handleDrop(sourceId, targetId); return; }
   const sorted = [...currentPages].sort((a, b) => a.number - b.number);
+  const total = sorted.length;
   const byId = new Map(sorted.map(p => [p.id, p]));
   const src = byId.get(sourceId), tgt = byId.get(targetId);
   if (!src || !tgt) return;
 
-  // What's being moved: a merged spread moves as its two pages.
   const srcPair = isMergedSpread(sourceId) ? pairIndex[sourceId] : null;
   const unit = srcPair ? [srcPair.verso, srcPair.recto] : [src];
   const unitIds = new Set(unit.map(p => p.id));
 
-  // Where it lands: dropping on a merged spread means before/after the whole spread.
   const tgtPair = isMergedSpread(targetId) ? pairIndex[targetId] : null;
   const anchor = side === "before" ? (tgtPair ? tgtPair.verso : tgt) : (tgtPair ? tgtPair.recto : tgt);
-  if (unitIds.has(anchor.id)) return;               // dropped on itself
+  if (unitIds.has(anchor.id)) return;
 
+  // Pinned pages (other than the one being moved) keep their numbers.
+  const pinned = computePinned(sorted);
+  unit.forEach(p => pinned.delete(p.id));
+  const pinnedNums = new Set(sorted.filter(p => pinned.has(p.id)).map(p => p.number));
+
+  // Where the unit goes among the pages that are free to flow.
   const rest = sorted.filter(p => !unitIds.has(p.id));
   let at = rest.findIndex(p => p.id === anchor.id);
   if (side === "after") at += 1;
-  const ordered = [...rest.slice(0, at), ...unit, ...rest.slice(at)];
-  if (ordered.every((p, i) => p.id === sorted[i].id)) return;   // no change
+  const wantIndex = rest.slice(0, at).filter(p => !pinned.has(p.id)).length;
+  const flowRest = rest.filter(p => !pinned.has(p.id));
+  const freeSlots = [];
+  for (let n = 1; n <= total; n++) if (!pinnedNums.has(n)) freeSlots.push(n);
 
-  const newNum = new Map(ordered.map((p, i) => [p.id, i + 1]));
-  const firstNew = newNum.get(unit[0].id);
+  // Pour the flowing pages into the free page numbers, in order.
+  const build = (fi) => {
+    const flow = [...flowRest.slice(0, fi), ...unit, ...flowRest.slice(fi)];
+    const out = new Array(total);
+    sorted.forEach(p => { if (pinned.has(p.id)) out[p.number - 1] = p; });
+    flow.forEach((p, i) => { out[freeSlots[i] - 1] = p; });
+    return out;
+  };
+  const spreadOk = (arr) => {
+    const v = arr.findIndex(p => p.id === unit[0].id) + 1;
+    return v % 2 === 0 && arr[v] && arr[v].id === unit[1].id;
+  };
 
-  if (srcPair && firstNew % 2 === 1) {
-    toast("A spread has to start on a left-hand (even) page — drop it next to another pair of facing pages");
-    return;
+  let final = build(wantIndex);
+  if (srcPair && !spreadOk(final)) {
+    // Snap a spread to the nearest spot where two facing pages are free.
+    final = null;
+    for (const d of [1, -1, 2, -2, 3, -3]) {
+      const fi = wantIndex + d;
+      if (fi < 0 || fi > flowRest.length) continue;
+      const tryIt = build(fi);
+      if (spreadOk(tryIt)) { final = tryIt; break; }
+    }
+    if (!final) {
+      toast("No room for the spread there — it needs two facing pages that aren't locked.");
+      return;
+    }
   }
 
-  // Warn if other spreads would end up straddling the wrong pages.
-  const broken = sorted.filter(p => p.spread && !unitIds.has(p.id)).filter(v => {
-    const r = sorted.find(x => x.number === v.number + 1);
-    const n = newNum.get(v.id);
-    return !(n % 2 === 0 && r && newNum.get(r.id) === n + 1);
-  });
-  if (broken.length && !window.confirm(
-    `Moving this shifts the pages in between by ${unit.length === 1 ? "one" : unit.length}, so ` +
-    (broken.length === 1
-      ? `the spread on pages ${broken[0].number}–${broken[0].number + 1} would no longer face each other and will be split into two pages.`
-      : `${broken.length} spreads (${broken.map(v => `${v.number}–${v.number + 1}`).join(", ")}) would no longer face each other and will be split.`) +
-    `\n\nMove anyway?`)) return;
+  if (final.every((p, i) => p.id === sorted[i].id)) return;   // nothing changes
 
+  const newNum = new Map(final.map((p, i) => [p.id, i + 1]));
+  const firstNew = newNum.get(unit[0].id);
   const fromLabel = unit.length === 2 ? `pages ${unit[0].number}–${unit[1].number}` : `page ${src.number}`;
   const toLabel = unit.length === 2 ? `pages ${firstNew}–${firstNew + 1}` : `page ${firstNew}`;
   try {
-    await applyPageOrder(ordered, []);
-    toast(`Moved ${fromLabel} to ${toLabel}`);
+    await applyPageOrder(final, []);
+    toast(`Moved ${fromLabel} to ${toLabel}` + (pinned.size ? " · locked pages and spreads stayed put" : ""));
   } catch (err) {
     console.error(err);
     toast("Couldn't move the page. Check your connection and try again.");
@@ -2264,7 +2346,7 @@ function handleDrop(sourceId, targetId){
 }
 
 async function swapPairs(a, b){
-  const fields = [...CONTENT_FIELDS, "spread"];
+  const fields = [...CONTENT_FIELDS, "spread", "locked"];
   const refs = [a.verso, a.recto, b.verso, b.recto].map(p => doc(db, "issues", currentIssueId, "pages", p.id));
   const snaps = await Promise.all(refs.map(r => getDoc(r)));
   if (snaps.some(s => !s.exists())) return;
@@ -2289,7 +2371,7 @@ async function swapPages(aId, bId){
   const [aSnap, bSnap] = await Promise.all([getDoc(aRef), getDoc(bRef)]);
   if (!aSnap.exists() || !bSnap.exists()) return;
   const aData = aSnap.data(), bData = bSnap.data();
-  const fields = CONTENT_FIELDS;
+  const fields = [...CONTENT_FIELDS, "locked"];
   const aPayload = {}, bPayload = {};
   fields.forEach(f => { aPayload[f] = bData[f] ?? null; bPayload[f] = aData[f] ?? null; });
   aPayload.lastEditedBy = currentUserName; aPayload.lastEditedAt = serverTimestamp();
@@ -2701,6 +2783,25 @@ document.addEventListener("keydown", (e) => {
   });
 })();
 
+/* ============================= SWAP (edit panel) ============================= */
+let lockInitial = false;
+document.getElementById("swapBtn").addEventListener("click", async () => {
+  if (!openPageId) return;
+  const n = parseInt(document.getElementById("swapWith").value, 10);
+  const target = currentPages.find(p => p.number === n);
+  if (!target) { toast(`There's no page ${isNaN(n) ? "" : n} in this issue`); return; }
+  const srcPair = isMergedSpread(openPageId) ? pairIndex[openPageId] : null;
+  const tgtId = isMergedSpread(target.id) ? pairIndex[target.id].verso.id : target.id;
+  if (tgtId === openPageId || (srcPair && (target.id === srcPair.verso.id || target.id === srcPair.recto.id))) {
+    toast("That's this page"); return;
+  }
+  document.getElementById("detailOverlay").hidden = true;
+  handleDrop(openPageId, tgtId);
+});
+document.getElementById("swapWith").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); document.getElementById("swapBtn").click(); }
+});
+
 /* ============================= COPY / PASTE ============================= */
 
 let pageClipboard = null;
@@ -2804,6 +2905,15 @@ function openDetail(pageId){
   document.getElementById("detailTitle").textContent = merged
     ? `Pages ${pair.verso.number}–${pair.recto.number} (spread)` : `Page ${p.number}`;
   document.getElementById("spreadField").hidden = !pair;
+  // Lock: spreads are always pinned; covers are locked by default.
+  lockInitial = pinnedIds.has(pageId);
+  document.getElementById("fLocked").checked = lockInitial;
+  document.getElementById("lockField").hidden = merged;
+  document.getElementById("lockSpreadNote").hidden = !merged;
+  document.getElementById("lockHint").textContent = isDefaultLockPosition(p) && p.locked !== false && p.locked !== true
+    ? "The cover and back cover are locked by default. Untick to let them move with other pages."
+    : "When other pages are moved, this one stays put and they flow around it.";
+  document.getElementById("swapWith").value = "";
   document.getElementById("fSpread").checked = merged;
   if (pair) {
     document.getElementById("spreadLabel").textContent =
@@ -2887,6 +2997,9 @@ document.getElementById("detailForm").addEventListener("submit", async (e) => {
   // A spread's details always live on its left-hand (verso) page.
   const targetId = wantSpread ? pair.verso.id : openPageId;
   const extra = pair ? { spread: wantSpread } : {};
+  // Only write the lock if it was changed, so covers keep their "locked by default".
+  const lockNow = document.getElementById("fLocked").checked;
+  if (!wantSpread && lockNow !== lockInitial) extra.locked = lockNow;
   if (pair && !wantSpread && targetId !== pair.verso.id && pair.verso.spread) {
     await updateDoc(doc(db, "issues", currentIssueId, "pages", pair.verso.id), { spread: false });
   }
