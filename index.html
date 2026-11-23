@@ -2250,6 +2250,21 @@ function computePinned(pages){
   });
   return set;
 }
+// Only user locks and the covers (not spreads) — used when a spread is moved.
+function lockedOnly(pages){
+  const sorted = [...pages].sort((a, b) => a.number - b.number);
+  const total = sorted.length;
+  const byNum = new Map(sorted.map(p => [p.number, p]));
+  const set = new Set();
+  sorted.forEach(p => {
+    const inSpread = p.spread || (p.number % 2 === 1 && byNum.get(p.number - 1)?.spread);
+    if (inSpread) return;
+    if (p.locked === true) set.add(p.id);
+    else if (p.locked !== false && (p.number === 1 || p.number === total)) set.add(p.id);
+  });
+  return set;
+}
+
 function isDefaultLockPosition(p){
   const total = currentPages.length;
   return p.number === 1 || p.number === total;
@@ -2275,44 +2290,59 @@ async function movePages(sourceId, targetId, side, asSwap){
   if (unitIds.has(anchor.id)) return;
 
   // Pinned pages (other than the one being moved) keep their numbers.
-  const pinned = computePinned(sorted);
+  // - Moving a SINGLE page: spreads are pinned too (shifting by one would break them).
+  // - Moving a SPREAD: other spreads may shift along as pairs (shifting by two keeps
+  //   them on facing pages); only locked pages and the covers stay put.
+  const pinned = srcPair ? lockedOnly(sorted) : computePinned(sorted);
   unit.forEach(p => pinned.delete(p.id));
   const pinnedNums = new Set(sorted.filter(p => pinned.has(p.id)).map(p => p.number));
 
-  // Where the unit goes among the pages that are free to flow.
+  // Everything else flows, as units: a merged spread moves as one two-page unit.
   const rest = sorted.filter(p => !unitIds.has(p.id));
+  const units = [];
+  for (let i = 0; i < rest.length; i++) {
+    const p = rest[i];
+    if (pinned.has(p.id)) continue;
+    const next = rest[i + 1];
+    if (p.spread && next && next.number === p.number + 1 && !pinned.has(next.id)) { units.push([p, next]); i++; }
+    else units.push([p]);
+  }
   let at = rest.findIndex(p => p.id === anchor.id);
   if (side === "after") at += 1;
-  const wantIndex = rest.slice(0, at).filter(p => !pinned.has(p.id)).length;
-  const flowRest = rest.filter(p => !pinned.has(p.id));
+  const before = new Set(rest.slice(0, at).map(p => p.id));
+  const wantIndex = units.filter(u => before.has(u[0].id)).length;
   const freeSlots = [];
   for (let n = 1; n <= total; n++) if (!pinnedNums.has(n)) freeSlots.push(n);
 
   // Pour the flowing pages into the free page numbers, in order.
-  const build = (fi) => {
-    const flow = [...flowRest.slice(0, fi), ...unit, ...flowRest.slice(fi)];
+  const build = (ui) => {
+    const flow = [...units.slice(0, ui), unit, ...units.slice(ui)].flat();
     const out = new Array(total);
     sorted.forEach(p => { if (pinned.has(p.id)) out[p.number - 1] = p; });
     flow.forEach((p, i) => { out[freeSlots[i] - 1] = p; });
     return out;
   };
-  const spreadOk = (arr) => {
-    const v = arr.findIndex(p => p.id === unit[0].id) + 1;
-    return v % 2 === 0 && arr[v] && arr[v].id === unit[1].id;
-  };
+  // Every spread (the moved one and any that shifted) must land on facing pages.
+  const spreadsOk = (arr) => arr.every((p, i) => {
+    if (!p.spread) return true;
+    if (!srcPair && p.id !== unit[0].id && pinned.has(p.id)) return true;
+    const n = i + 1, r = arr[i + 1];
+    const partner = sorted.find(x => x.number === p.number + 1);
+    return n % 2 === 0 && r && partner && r.id === partner.id;
+  });
 
   let final = build(wantIndex);
-  if (srcPair && !spreadOk(final)) {
-    // Snap a spread to the nearest spot where two facing pages are free.
+  if (srcPair && !spreadsOk(final)) {
+    // Snap to the nearest spot where everything still lands on facing pages.
     final = null;
     for (const d of [1, -1, 2, -2, 3, -3]) {
-      const fi = wantIndex + d;
-      if (fi < 0 || fi > flowRest.length) continue;
-      const tryIt = build(fi);
-      if (spreadOk(tryIt)) { final = tryIt; break; }
+      const ui = wantIndex + d;
+      if (ui < 0 || ui > units.length) continue;
+      const tryIt = build(ui);
+      if (spreadsOk(tryIt)) { final = tryIt; break; }
     }
     if (!final) {
-      toast("No room for the spread there — it needs two facing pages that aren't locked.");
+      toast("No room for the spread there — a locked page is in the way. Unlock it, or drop the spread somewhere else.");
       return;
     }
   }
@@ -2325,7 +2355,7 @@ async function movePages(sourceId, targetId, side, asSwap){
   const toLabel = unit.length === 2 ? `pages ${firstNew}–${firstNew + 1}` : `page ${firstNew}`;
   try {
     await applyPageOrder(final, []);
-    toast(`Moved ${fromLabel} to ${toLabel}` + (pinned.size ? " · locked pages and spreads stayed put" : ""));
+    toast(`Moved ${fromLabel} to ${toLabel}` + (pinned.size ? (srcPair ? " · locked pages stayed put" : " · locked pages and spreads stayed put") : ""));
   } catch (err) {
     console.error(err);
     toast("Couldn't move the page. Check your connection and try again.");
