@@ -950,6 +950,53 @@
   .swap-tool{display:inline-flex;gap:4px;align-items:center;margin-left:auto;}
   .swap-tool input{width:64px;padding:5px 8px;font-size:13px;}
   .lock-note{margin:-4px 0 12px;}
+
+  /* ---- change alerts ---- */
+  .bell-btn{position:relative;font-size:15px;min-width:34px;justify-content:center;}
+  .bell-btn.has-unread{color:var(--text) !important;}
+  .bell-count{
+    position:absolute;top:-3px;right:-3px;min-width:17px;height:17px;padding:0 4px;border-radius:999px;
+    background:#e5484d;color:#fff;font-size:10px;font-weight:800;line-height:17px;text-align:center;
+    box-shadow:0 0 0 2px var(--bg-elevated);
+  }
+  .bell-count[hidden]{display:none;}
+  .since-bar{
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 20px;font-size:13px;
+    background:color-mix(in srgb, #4d93ff 14%, var(--bg-elevated));border-bottom:1px solid color-mix(in srgb, #4d93ff 35%, var(--border));
+    color:var(--text);
+  }
+  .since-bar[hidden]{display:none;}
+  .since-x{margin-left:auto;background:none;border:0;font-size:20px;line-height:1;color:var(--text-dim);cursor:pointer;padding:2px 6px;}
+  .page-card.just-changed{animation:justChanged 1.4s ease-out 3;}
+  @keyframes justChanged{
+    0%{box-shadow:0 0 0 0 rgba(77,147,255,0.9), 0 0 0 0 rgba(77,147,255,0.5);}
+    60%{box-shadow:0 0 0 4px rgba(77,147,255,0.9), 0 0 22px 6px rgba(77,147,255,0.45);}
+    100%{box-shadow:0 0 0 0 rgba(77,147,255,0), 0 0 0 0 rgba(77,147,255,0);}
+  }
+  #changesOverlay{justify-content:flex-end;}
+  .changes-panel{
+    background:var(--bg-elevated);width:min(420px, 100vw);height:100%;overflow:auto;
+    padding:18px 18px 30px;box-shadow:-10px 0 30px rgba(0,0,0,0.18);
+  }
+  .changes-head{display:flex;align-items:center;}
+  .changes-head h2{margin:0;font-size:18px;letter-spacing:-0.015em;}
+  .changes-tools{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 12px;}
+  .changes-list{list-style:none;margin:0;padding:0;}
+  .change-item{
+    display:flex;gap:10px;padding:10px 8px;border-radius:8px;cursor:pointer;
+    border-bottom:1px solid var(--border);
+  }
+  .change-item:hover{background:var(--card-bg);}
+  .change-item.unread{background:color-mix(in srgb, #4d93ff 9%, transparent);}
+  .change-item.unread .ci-text b::after{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#4d93ff;margin-left:6px;vertical-align:middle;}
+  .ci-avatar{
+    flex:none;width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;
+    font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;
+  }
+  .ci-body{display:flex;flex-direction:column;gap:2px;min-width:0;}
+  .ci-text{font-size:13px;line-height:1.4;color:var(--text);overflow-wrap:anywhere;}
+  .ci-time{font-size:11.5px;color:var(--text-faint);}
+  .changes-empty{color:var(--text-dim);font-size:13px;padding:14px 4px;}
 </style>
 <script>
   (function(){
@@ -1024,6 +1071,7 @@
       <div class="presence-row" id="presenceRow"></div>
       <div class="header-right">
         <button class="btn small secondary" id="screenshotBtn" title="Download the current flatplan as a PNG image">&#8681;<span class="lbl"> Export PNG</span></button>
+        <button class="btn small ghost bell-btn" id="bellBtn" title="Recent changes by others" aria-label="Recent changes">&#128276;<span class="bell-count" id="bellCount" hidden>0</span></button>
         <button class="btn small ghost" id="adminBtn" hidden>Team</button>
         <button class="btn small ghost icon-only" id="themeBtn" title="Switch light / dark"></button>
         <span class="hdr-divider" aria-hidden="true"></span>
@@ -1038,6 +1086,11 @@
         <div class="legend-block"><span class="legend-label">Status</span><div class="legend-group" id="legendStatuses"></div></div>
       </div>
       <div class="issue-summary" id="issueSummary" hidden></div>
+      <div class="since-bar" id="sinceBar" hidden>
+        <span id="sinceText"></span>
+        <button class="btn small secondary" id="sinceView">View changes</button>
+        <button class="since-x" id="sinceClose" aria-label="Dismiss">&times;</button>
+      </div>
       <div class="clip-bar" id="clipBar" hidden>
         <span>&#128203; Copied <strong id="clipLabel"></strong></span>
         <span class="hint">Tap &#128203; on any page to paste it there</span>
@@ -1154,6 +1207,22 @@
         <button type="submit" class="btn">Save</button>
       </form>
     </div>
+  </div>
+
+  <div id="changesOverlay" class="overlay" hidden>
+    <aside class="changes-panel" role="dialog" aria-label="Recent changes">
+      <div class="changes-head">
+        <h2>Recent changes</h2>
+        <button class="since-x" id="changesClose" aria-label="Close">&times;</button>
+      </div>
+      <p class="panel-meta" id="changesSub">Changes other people make to this issue appear here.</p>
+      <div class="changes-tools">
+        <button type="button" class="btn small secondary" id="changesMarkRead">Mark all as read</button>
+        <button type="button" class="btn small secondary" id="notifyBtn" hidden>&#128276; Turn on desktop alerts</button>
+        <button type="button" class="btn small ghost" id="changesClear">Clear list</button>
+      </div>
+      <ol class="changes-list" id="changesList"></ol>
+    </aside>
   </div>
 
   <div id="viewer" class="viewer" hidden role="dialog" aria-modal="true" aria-label="Picture viewer">
@@ -1661,9 +1730,12 @@ function selectIssue(issueId){
   currentIssueId = issueId;
   if (unsubPages) unsubPages();
   const q = query(collection(db, "issues", issueId, "pages"), orderBy("number", "asc"));
+  resetChangeTracking(issueId);
   unsubPages = onSnapshot(q, (snap) => {
     currentPages = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const changes = detectChanges(issueId, currentPages);
     renderGrid(currentPages);
+    announceChanges(issueId, changes);
   });
   startPresence(issueId);
 }
@@ -1740,7 +1812,7 @@ async function applyPageOrder(ordered, removed){
       return;
     }
     const update = {};
-    if (p.number !== n) update.number = n;
+    if (p.number !== n) { update.number = n; update.movedBy = currentUserName; update.movedAt = serverTimestamp(); }
     if (p.spread) {
       // A spread stays only if it's still on an even (left-hand) page with its
       // original right-hand partner directly after it.
@@ -2697,6 +2769,216 @@ document.getElementById("restoreFile").addEventListener("change", async (e) => {
     setBackupStatus("The restore stopped part-way (" + (err.code || err.message) + "). It's safe to run it again — nothing will be duplicated.", true);
   }
 });
+
+/* ============================= CHANGE ALERTS ============================= */
+// Works entirely in the browser: each page snapshot is compared with the last one
+// this device saw (kept in localStorage), and anything changed by someone else is
+// announced. No server, no Firebase changes.
+
+const FP_FIELDS = ["title", "section", "contentType", "status", "reporter", "wordCount", "notes",
+  "layout", "bTitle", "bSection", "bContentType", "bStatus", "spread", "locked"];
+let fpIssue = null;          // issue the in-memory fingerprints belong to
+let fpPrev = null;           // Map pageId -> fingerprint (null = first snapshot for this issue)
+let snapSaveTimer = null;
+
+const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+const tsMs = (t) => t && typeof t.toMillis === "function" ? t.toMillis() : (typeof t === "number" ? t : 0);
+
+function fingerprint(p){
+  const f = { n: p.number, by: p.lastEditedBy || "", at: tsMs(p.lastEditedAt), mv: p.movedBy || "",
+              th: p.thumb ? String(p.thumb).length : 0 };
+  FP_FIELDS.forEach(k => { f[k] = p[k] ?? null; });
+  return f;
+}
+
+function resetChangeTracking(issueId){
+  fpIssue = issueId; fpPrev = null;
+  document.getElementById("sinceBar").hidden = true;
+  refreshBell();
+}
+
+function describeChange(o, n){
+  const parts = [];
+  const lbl = (k, map) => (map[k] || {}).label || k;
+  if (o.title !== n.title) parts.push(n.title ? `headline “${n.title}”` : "headline cleared");
+  if (o.contentType !== n.contentType) parts.push(`section → ${lbl(n.contentType || "unassigned", CONTENT_TYPES)}`);
+  if (o.status !== n.status) parts.push(`status → ${lbl(n.status || "planned", STATUSES)}`);
+  if (o.reporter !== n.reporter) parts.push(n.reporter ? `reporter → ${n.reporter}` : "reporter removed");
+  if (o.wordCount !== n.wordCount) parts.push(n.wordCount ? `word count → ${Number(n.wordCount).toLocaleString("en-AU")}` : "word count removed");
+  if (o.section !== n.section) parts.push(n.section ? `section name → ${n.section}` : "section name removed");
+  if (o.notes !== n.notes) parts.push("notes updated");
+  if (o.th !== n.th) parts.push(!o.th ? "picture added" : !n.th ? "picture removed" : "picture changed");
+  if (!!o.spread !== !!n.spread) parts.push(n.spread ? "made a spread" : "spread split");
+  if ((o.layout || "full") !== (n.layout || "full")) parts.push(n.layout === "halfV" ? "split into half pages" : "made a full page");
+  if (o.bTitle !== n.bTitle || o.bContentType !== n.bContentType || o.bStatus !== n.bStatus || o.bSection !== n.bSection) parts.push("other half updated");
+  if (o.locked !== n.locked && (o.locked === true || n.locked === true || n.locked === false)) parts.push(n.locked === true ? "locked" : "unlocked");
+  return parts;
+}
+
+function detectChanges(issueId, pages){
+  if (issueId !== fpIssue) return [];
+  const me = currentUserName;
+  const now = new Map(pages.map(p => [p.id, fingerprint(p)]));
+  let prev = fpPrev, sinceLastVisit = false;
+  if (!prev) {
+    // First snapshot for this issue in this session: compare with what this device saw last time.
+    const stored = lsGet("flatplanSnap:" + issueId, null);
+    if (stored) { prev = new Map(Object.entries(stored)); sinceLastVisit = true; }
+  }
+  fpPrev = now;
+  clearTimeout(snapSaveTimer);
+  snapSaveTimer = setTimeout(() => lsSet("flatplanSnap:" + issueId, Object.fromEntries(now)), 800);
+  if (!prev) return [];
+
+  const items = [];
+  const moved = [], added = [];
+  pages.forEach(p => {
+    const n = now.get(p.id), o = prev.get(p.id);
+    if (!o) { if (n.by && n.by !== me) added.push(p); return; }
+    const parts = describeChange(o, n);
+    if (parts.length && n.by && n.by !== me) {
+      items.push({ by: n.by, at: n.at || Date.now(), pageId: p.id, num: p.number,
+                   text: `changed page ${p.number}: ${parts.slice(0, 3).join(", ")}${parts.length > 3 ? "…" : ""}` });
+    }
+    if (o.n !== n.n && n.mv && n.mv !== me) moved.push({ p, d: Math.abs(o.n - n.n) });
+  });
+  if (moved.length) {
+    const star = moved.sort((a, b) => b.d - a.d)[0].p;
+    items.push({ by: star.movedBy, at: tsMs(star.movedAt) || Date.now(), pageId: star.id, num: star.number,
+                 text: `moved “${star.title || "Untitled"}” to page ${star.number}` + (moved.length > 1 ? ` (${moved.length} pages renumbered)` : "") });
+  }
+  if (added.length) {
+    items.push({ by: added[0].lastEditedBy, at: tsMs(added[0].lastEditedAt) || Date.now(), pageId: added[0].id, num: added[0].number,
+                 text: `added ${added.length} page${added.length === 1 ? "" : "s"} (now ${pages.length} pages)` });
+  }
+  const removed = [...prev.keys()].filter(id => !now.has(id)).length;
+  if (removed) items.push({ by: "", at: Date.now(), pageId: null, num: null,
+                            text: `removed ${removed} page${removed === 1 ? "" : "s"} (now ${pages.length} pages)` });
+  items.forEach(it => { it.since = sinceLastVisit; it.id = it.at + ":" + (it.pageId || "") + ":" + Math.random().toString(36).slice(2, 6); });
+  return items;
+}
+
+function storedChanges(issueId){ return lsGet("flatplanChanges:" + issueId, []); }
+function unreadCount(issueId){
+  const seen = lsGet("flatplanChangesSeen:" + issueId, 0);
+  return storedChanges(issueId).filter(c => c.seenKey > seen).length;
+}
+function refreshBell(){
+  const n = currentIssueId ? unreadCount(currentIssueId) : 0;
+  const el = document.getElementById("bellCount");
+  el.hidden = !n; el.textContent = n > 99 ? "99+" : String(n);
+  document.getElementById("bellBtn").classList.toggle("has-unread", !!n);
+}
+
+function announceChanges(issueId, items){
+  if (!items.length) return;
+  // Keep a per-issue log on this device (newest first, capped).
+  const stamp = Date.now();
+  items.forEach((it, i) => { it.seenKey = stamp + i; });
+  const log = [...items.slice().sort((a, b) => b.at - a.at), ...storedChanges(issueId)].slice(0, 150);
+  lsSet("flatplanChanges:" + issueId, log);
+  refreshBell();
+
+  // Glow on the changed pages.
+  items.forEach(it => flashPage(it.pageId, false));
+
+  const who = [...new Set(items.map(i => i.by).filter(Boolean))];
+  const whoText = who.length ? (who.length <= 2 ? who.join(" & ") : `${who[0]} & ${who.length - 1} others`) : "Someone";
+  if (items[0].since) {
+    const bar = document.getElementById("sinceBar");
+    document.getElementById("sinceText").innerHTML =
+      `<b>Since you were last here:</b> ${items.length} change${items.length === 1 ? "" : "s"} by ${escapeHtml(whoText)}`;
+    bar.hidden = false;
+    return;
+  }
+  const msg = items.length === 1 ? `${items[0].by || "Someone"} ${items[0].text}` : `${whoText} made ${items.length} changes`;
+  toast(msg);
+  if (document.hidden && "Notification" in window && Notification.permission === "granted") {
+    try {
+      const issueName = document.getElementById("issueSelect").selectedOptions[0]?.textContent || "Flatplan";
+      new Notification(`Flatplan · ${issueName}`, { body: msg, tag: "flatplan-" + issueId });
+    } catch (e) { /* some mobile browsers don't allow page notifications */ }
+  }
+}
+
+function cardFor(pageId){
+  if (!pageId) return null;
+  let el = document.querySelector(`.page-card[data-page-id="${CSS.escape(pageId)}"]`);
+  if (!el && pairIndex[pageId]) el = document.querySelector(`.page-card[data-page-id="${CSS.escape(pairIndex[pageId].verso.id)}"]`);
+  return el;
+}
+function flashPage(pageId, scroll){
+  const el = cardFor(pageId);
+  if (!el) return;
+  if (scroll) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.classList.remove("just-changed"); void el.offsetWidth; el.classList.add("just-changed");
+  setTimeout(() => el.classList.remove("just-changed"), 4200);
+}
+
+function fmtAgo(ms){
+  const secs = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+  if (secs < 60) return "just now";
+  if (secs < 3600) return Math.floor(secs / 60) + "m ago";
+  if (secs < 86400) return Math.floor(secs / 3600) + "h ago";
+  const d = new Date(ms);
+  return d.toLocaleDateString("en-AU", { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" });
+}
+
+function openChanges(){
+  if (!currentIssueId) return;
+  const seen = lsGet("flatplanChangesSeen:" + currentIssueId, 0);
+  const log = storedChanges(currentIssueId);
+  const list = document.getElementById("changesList");
+  list.innerHTML = log.length ? log.map((c, i) => `
+    <li class="change-item${c.seenKey > seen ? " unread" : ""}" data-i="${i}">
+      <span class="ci-avatar">${escapeHtml((c.by || "?").charAt(0).toUpperCase())}</span>
+      <span class="ci-body">
+        <span class="ci-text"><b>${escapeHtml(c.by || "Someone")}</b> ${escapeHtml(c.text)}</span>
+        <span class="ci-time">${escapeHtml(fmtAgo(c.at))}${c.since ? " · while you were away" : ""}</span>
+      </span>
+    </li>`).join("")
+    : `<li class="changes-empty">No changes by other people yet. When a colleague edits, moves or adds pages, it shows up here.</li>`;
+  list.querySelectorAll(".change-item").forEach(li => li.addEventListener("click", () => {
+    const c = log[Number(li.dataset.i)];
+    closeChanges();
+    if (c && c.pageId) flashPage(c.pageId, true);
+  }));
+  const nb = document.getElementById("notifyBtn");
+  nb.hidden = !("Notification" in window) || Notification.permission !== "default";
+  document.getElementById("changesOverlay").hidden = false;
+}
+function closeChanges(){
+  document.getElementById("changesOverlay").hidden = true;
+  markChangesRead();
+}
+function markChangesRead(){
+  if (!currentIssueId) return;
+  const log = storedChanges(currentIssueId);
+  lsSet("flatplanChangesSeen:" + currentIssueId, log.length ? Math.max(...log.map(c => c.seenKey || 0)) : Date.now());
+  refreshBell();
+}
+document.getElementById("bellBtn").addEventListener("click", openChanges);
+document.getElementById("changesClose").addEventListener("click", closeChanges);
+document.getElementById("changesOverlay").addEventListener("click", (e) => { if (e.target.id === "changesOverlay") closeChanges(); });
+document.getElementById("changesMarkRead").addEventListener("click", () => {
+  markChangesRead();
+  document.querySelectorAll(".change-item.unread").forEach(li => li.classList.remove("unread"));
+});
+document.getElementById("changesClear").addEventListener("click", () => {
+  if (!currentIssueId) return;
+  lsSet("flatplanChanges:" + currentIssueId, []);
+  markChangesRead(); openChanges();
+});
+document.getElementById("notifyBtn").addEventListener("click", async () => {
+  try {
+    const r = await Notification.requestPermission();
+    toast(r === "granted" ? "Desktop alerts on — you'll be notified when Flatplan is in the background" : "Desktop alerts not allowed");
+  } catch (e) { toast("This browser doesn't support desktop alerts"); }
+  document.getElementById("notifyBtn").hidden = true;
+});
+document.getElementById("sinceView").addEventListener("click", () => { document.getElementById("sinceBar").hidden = true; openChanges(); });
+document.getElementById("sinceClose").addEventListener("click", () => { document.getElementById("sinceBar").hidden = true; });
 
 /* ============================= PICTURE VIEWER ============================= */
 
