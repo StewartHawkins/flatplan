@@ -997,6 +997,15 @@
   .ci-text{font-size:13px;line-height:1.4;color:var(--text);overflow-wrap:anywhere;}
   .ci-time{font-size:11.5px;color:var(--text-faint);}
   .changes-empty{color:var(--text-dim);font-size:13px;padding:14px 4px;}
+
+  /* ---- undo ---- */
+  #undoBtn[disabled]{opacity:0.35;cursor:default;}
+  #toast.has-action{display:flex;align-items:center;gap:14px;pointer-events:auto;}
+  .toast-undo{
+    background:none;border:0;padding:2px 4px;cursor:pointer;
+    font:inherit;font-weight:700;color:var(--accent);text-decoration:underline;text-underline-offset:3px;
+  }
+  @media (max-width:600px){ #undoBtn .lbl{display:none;} }
 </style>
 <script>
   (function(){
@@ -1071,6 +1080,7 @@
       <div class="presence-row" id="presenceRow"></div>
       <div class="header-right">
         <button class="btn small secondary" id="screenshotBtn" title="Download the current flatplan as a PNG image">&#8681;<span class="lbl"> Export PNG</span></button>
+        <button class="btn small ghost" id="undoBtn" disabled title="Nothing to undo">&#8630;<span class="lbl"> Undo</span></button>
         <button class="btn small ghost bell-btn" id="bellBtn" title="Recent changes by others" aria-label="Recent changes">&#128276;<span class="bell-count" id="bellCount" hidden>0</span></button>
         <button class="btn small ghost" id="adminBtn" hidden>Team</button>
         <button class="btn small ghost icon-only" id="themeBtn" title="Switch light / dark"></button>
@@ -1441,12 +1451,20 @@ function escapeHtml(str){
 }
 function pad(n){ return "p" + String(n).padStart(4, "0"); }
 let toastTimer;
-function toast(msg){
+function toast(msg, opts){
   const el = document.getElementById("toast");
   el.textContent = msg;
+  const withUndo = opts && opts.undo;
+  if (withUndo) {
+    const b = document.createElement("button");
+    b.className = "toast-undo"; b.type = "button"; b.textContent = "Undo";
+    b.addEventListener("click", () => { el.classList.remove("show"); undoLast(); });
+    el.appendChild(b);
+  }
+  el.classList.toggle("has-action", !!withUndo);
   el.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove("show"), 2600);
+  toastTimer = setTimeout(() => el.classList.remove("show"), withUndo ? 6000 : 2600);
 }
 function timeAgo(ts){
   if (!ts) return "";
@@ -1795,16 +1813,19 @@ function pagesHaveContent(list){
 // Applies a new page order: `ordered` is the full list of surviving + new pages in
 // their new order (new pages have isNew:true). Renumbers, keeps spreads valid,
 // deletes removed pages, and writes in chunks to stay under Firestore's batch limit.
-async function applyPageOrder(ordered, removed){
+async function applyPageOrder(ordered, removed, undoLabel){
   const ops = [];
   const newNum = new Map();
   ordered.forEach((p, i) => newNum.set(p, i + 1));
   const byOldNum = new Map(currentPages.map(p => [p.number, p]));
+  const touched = [], created = [];
 
   ordered.forEach((p, i) => {
     const n = i + 1;
     if (p.isNew) {
-      ops.push(["set", doc(collection(db, "issues", currentIssueId, "pages")), {
+      const ref = doc(collection(db, "issues", currentIssueId, "pages"));
+      created.push(ref.id || String(ref).split("/").pop());
+      ops.push(["set", ref, {
         number: n, title: "", section: "", contentType: "unassigned",
         status: "planned", notes: "", wordCount: null, photoCredit: "", reporter: "",
         lastEditedBy: currentUserName, lastEditedAt: serverTimestamp()
@@ -1820,9 +1841,10 @@ async function applyPageOrder(ordered, removed){
       const stillValid = n % 2 === 0 && partner && newNum.get(partner) === n + 1 && n + 1 <= ordered.length;
       if (!stillValid) update.spread = false;
     }
-    if (Object.keys(update).length) ops.push(["update", doc(db, "issues", currentIssueId, "pages", p.id), update]);
+    if (Object.keys(update).length) { touched.push(p.id); ops.push(["update", doc(db, "issues", currentIssueId, "pages", p.id), update]); }
   });
-  removed.forEach(p => ops.push(["delete", doc(db, "issues", currentIssueId, "pages", p.id)]));
+  removed.forEach(p => { touched.push(p.id); ops.push(["delete", doc(db, "issues", currentIssueId, "pages", p.id)]); });
+  const rec = beginUndo(touched);
   ops.push(["update", doc(db, "issues", currentIssueId), { pageCount: ordered.length }]);
 
   for (let i = 0; i < ops.length; i += 400) {
@@ -1834,6 +1856,7 @@ async function applyPageOrder(ordered, removed){
     });
     await batch.commit();
   }
+  pushUndo(rec, undoLabel || "Page change", created);
 }
 
 function refreshPagesPreview(){
@@ -1895,9 +1918,9 @@ document.getElementById("addPagesForm").addEventListener("submit", async (e) => 
     const sorted = [...currentPages].sort((a, b) => a.number - b.number);
     const blanks = Array.from({ length: count }, () => ({ isNew: true }));
     const ordered = [...sorted.slice(0, after), ...blanks, ...sorted.slice(after)];
-    await applyPageOrder(ordered, []);
+    await applyPageOrder(ordered, [], `Add ${count} pages after page ${after}`);
     document.getElementById("pagesOverlay").hidden = true;
-    toast(`Added ${count} pages after page ${after}`);
+    toast(`Added ${count} pages after page ${after}`, { undo: true });
   } catch (err) {
     console.error(err);
     errEl.textContent = "Couldn't add the pages. Check your connection and try again.";
@@ -1927,9 +1950,9 @@ document.getElementById("removePagesForm").addEventListener("submit", async (e) 
   try {
     const sorted = [...currentPages].sort((a, b) => a.number - b.number);
     const ordered = sorted.filter(p => p.number < from || p.number > to);
-    await applyPageOrder(ordered, gone);
+    await applyPageOrder(ordered, gone, `Remove page${gone.length === 1 ? "" : "s"} ${from}${to !== from ? "–" + to : ""}`);
     document.getElementById("pagesOverlay").hidden = true;
-    toast(`Removed ${gone.length} page${gone.length === 1 ? "" : "s"}`);
+    toast(`Removed ${gone.length} page${gone.length === 1 ? "" : "s"}`, { undo: true });
   } catch (err) {
     console.error(err);
     errEl.textContent = "Couldn't remove the pages. Check your connection and try again.";
@@ -2426,8 +2449,8 @@ async function movePages(sourceId, targetId, side, asSwap){
   const fromLabel = unit.length === 2 ? `pages ${unit[0].number}–${unit[1].number}` : `page ${src.number}`;
   const toLabel = unit.length === 2 ? `pages ${firstNew}–${firstNew + 1}` : `page ${firstNew}`;
   try {
-    await applyPageOrder(final, []);
-    toast(`Moved ${fromLabel} to ${toLabel}` + (pinned.size ? (srcPair ? " · locked pages stayed put" : " · locked pages and spreads stayed put") : ""));
+    await applyPageOrder(final, [], `Move ${fromLabel} to ${toLabel}`);
+    toast(`Moved ${fromLabel} to ${toLabel}` + (pinned.size ? (srcPair ? " · locked pages stayed put" : " · locked pages and spreads stayed put") : ""), { undo: true });
   } catch (err) {
     console.error(err);
     toast("Couldn't move the page. Check your connection and try again.");
@@ -2453,6 +2476,7 @@ async function swapPairs(a, b){
   const snaps = await Promise.all(refs.map(r => getDoc(r)));
   if (snaps.some(s => !s.exists())) return;
   const [av, ar, bv, br] = snaps.map(s => s.data());
+  const rec = beginUndo([a.verso.id, a.recto.id, b.verso.id, b.recto.id]);
   const build = (from) => {
     const out = { lastEditedBy: currentUserName, lastEditedAt: serverTimestamp() };
     fields.forEach(f => { out[f] = from[f] ?? (f === "spread" ? false : null); });
@@ -2464,7 +2488,8 @@ async function swapPairs(a, b){
   batch.update(refs[2], build(av));
   batch.update(refs[3], build(ar));
   await batch.commit();
-  toast(`Swapped pages ${av.number}–${ar.number} with ${bv.number}–${br.number}`);
+  pushUndo(rec, `Swap pages ${av.number}–${ar.number} with ${bv.number}–${br.number}`);
+  toast(`Swapped pages ${av.number}–${ar.number} with ${bv.number}–${br.number}`, { undo: true });
 }
 
 async function swapPages(aId, bId){
@@ -2473,6 +2498,7 @@ async function swapPages(aId, bId){
   const [aSnap, bSnap] = await Promise.all([getDoc(aRef), getDoc(bRef)]);
   if (!aSnap.exists() || !bSnap.exists()) return;
   const aData = aSnap.data(), bData = bSnap.data();
+  const rec = beginUndo([aId, bId]);
   const fields = [...CONTENT_FIELDS, "locked"];
   const aPayload = {}, bPayload = {};
   fields.forEach(f => { aPayload[f] = bData[f] ?? null; bPayload[f] = aData[f] ?? null; });
@@ -2482,7 +2508,8 @@ async function swapPages(aId, bId){
   batch.update(aRef, aPayload);
   batch.update(bRef, bPayload);
   await batch.commit();
-  toast(`Swapped page ${aData.number} and page ${bData.number}`);
+  pushUndo(rec, `Swap page ${aData.number} and page ${bData.number}`);
+  toast(`Swapped page ${aData.number} and page ${bData.number}`, { undo: true });
 }
 
 function refreshNotesLinks(){
@@ -2791,6 +2818,105 @@ document.getElementById("restoreFile").addEventListener("change", async (e) => {
   }
 });
 
+/* ============================= UNDO ============================= */
+// Each change you make records how the affected pages looked just before, so
+// "Undo" can put them back. Your own changes only, newest first, this session.
+const undoStack = [];
+
+function pageData(id){
+  const p = currentPages.find(x => x.id === id);
+  if (!p) return null;
+  const { id: _omit, ...data } = p;
+  return data;
+}
+function beginUndo(ids){
+  return { issueId: currentIssueId, pageCount: currentPages.length,
+           docs: [...new Set(ids.filter(Boolean))].map(id => ({ id, before: pageData(id) })) };
+}
+function stateKey(id){
+  const p = currentPages.find(x => x.id === id);
+  if (!p) return "none";
+  const f = fingerprint(p); delete f.at;
+  return JSON.stringify(f);
+}
+function pushUndo(rec, label, createdIds){
+  (createdIds || []).forEach(id => rec.docs.push({ id, before: null }));
+  if (!rec.docs.length) return;
+  rec.label = label;
+  undoStack.push(rec);
+  if (undoStack.length > 30) undoStack.shift();
+  // Remember how things looked right after the change, to spot later edits by others.
+  setTimeout(() => { rec.after = new Map(rec.docs.map(d => [d.id, stateKey(d.id)])); }, 900);
+  refreshUndoBtn();
+}
+function lastUndoIndex(){
+  for (let i = undoStack.length - 1; i >= 0; i--) if (undoStack[i].issueId === currentIssueId) return i;
+  return -1;
+}
+function refreshUndoBtn(){
+  const btn = document.getElementById("undoBtn");
+  const i = lastUndoIndex();
+  btn.disabled = i < 0;
+  btn.title = i < 0 ? "Nothing to undo" : `Undo: ${undoStack[i].label} (Ctrl+Z)`;
+}
+const sameContent = (a, b) => {
+  const k = (p) => { const f = fingerprint(p); ["n", "at", "by", "mv"].forEach(x => delete f[x]); return JSON.stringify(f); };
+  return k(a) === k(b);
+};
+
+async function undoLast(){
+  const i = lastUndoIndex();
+  if (i < 0) { toast("Nothing to undo"); return; }
+  const rec = undoStack[i];
+  // Has anyone else changed these pages since?
+  if (rec.after) {
+    const changed = rec.docs.filter(d => stateKey(d.id) !== rec.after.get(d.id));
+    if (changed.length) {
+      const names = [...new Set(changed.map(d => {
+        const p = currentPages.find(x => x.id === d.id);
+        return p ? (p.lastEditedBy || p.movedBy) : null;
+      }).filter(n => n && n !== currentUserName))];
+      const pagesTxt = changed.map(d => currentPages.find(x => x.id === d.id)?.number).filter(Boolean).slice(0, 6).join(", ");
+      if (!window.confirm(`${names.length ? names.join(" & ") : "Someone"} changed ${pagesTxt ? "page " + pagesTxt : "these pages"} after you did this.\n\nUndo “${rec.label}” anyway? Their later changes to those pages will be lost.`)) return;
+    }
+  }
+  try {
+    const batch = writeBatch(db);
+    let pageCountChanges = false;
+    rec.docs.forEach(d => {
+      const ref = doc(db, "issues", rec.issueId, "pages", d.id);
+      const cur = currentPages.find(x => x.id === d.id);
+      if (d.before === null) {
+        if (cur) { batch.delete(ref); pageCountChanges = true; }
+        return;
+      }
+      if (!cur) pageCountChanges = true;
+      const data = { ...d.before };
+      if (!cur || !sameContent(cur, d.before)) { data.lastEditedBy = currentUserName; data.lastEditedAt = serverTimestamp(); }
+      if (!cur || cur.number !== d.before.number) { data.movedBy = currentUserName; data.movedAt = serverTimestamp(); }
+      batch.set(ref, data);
+    });
+    if (pageCountChanges) batch.update(doc(db, "issues", rec.issueId), { pageCount: rec.pageCount });
+    await batch.commit();
+    undoStack.splice(i, 1);
+    refreshUndoBtn();
+    toast(`Undone: ${rec.label}`);
+  } catch (err) {
+    console.error(err);
+    toast("Couldn't undo — check your connection and try again.");
+  }
+}
+document.getElementById("undoBtn").addEventListener("click", undoLast);
+document.addEventListener("keydown", (e) => {
+  if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== "z") return;
+  const t = e.target;
+  if (t && (t.closest("input, textarea, select, [contenteditable]"))) return;   // normal text undo there
+  const anyOpen = [...document.querySelectorAll(".overlay, .viewer")].some(o => !o.hidden);
+  if (anyOpen || !currentIssueId) return;
+  e.preventDefault();
+  undoLast();
+});
+
 /* ============================= CHANGE ALERTS ============================= */
 // Works entirely in the browser: each page snapshot is compared with the last one
 // this device saw (kept in localStorage), and anything changed by someone else is
@@ -2815,6 +2941,7 @@ function fingerprint(p){
 
 function resetChangeTracking(issueId){
   fpIssue = issueId; fpPrev = null;
+  setTimeout(refreshUndoBtn, 0);
   document.getElementById("sinceBar").hidden = true;
   refreshBell();
 }
@@ -3188,6 +3315,7 @@ async function pastePage(pageId){
     const { verso, recto } = pair;
     if ((pageHasContent(verso) || pageHasContent(recto)) &&
         !window.confirm(`Replace pages ${verso.number}–${recto.number} with the copied spread?`)) return;
+    const rec = beginUndo([verso.id]);
     await updateDoc(doc(db, "issues", currentIssueId, "pages", verso.id), {
       ...pageClipboard.data,
       layout: "full",
@@ -3195,7 +3323,8 @@ async function pastePage(pageId){
       lastEditedBy: currentUserName,
       lastEditedAt: serverTimestamp()
     });
-    toast(`Pasted spread onto pages ${verso.number}–${recto.number}`);
+    pushUndo(rec, `Paste spread onto pages ${verso.number}–${recto.number}`);
+    toast(`Pasted spread onto pages ${verso.number}–${recto.number}`, { undo: true });
     return true;
   }
 
@@ -3203,12 +3332,14 @@ async function pastePage(pageId){
   const target = isMergedSpread(pageId) ? pairIndex[pageId].verso : p;
   const label = isMergedSpread(pageId) ? `spread ${target.number}–${target.number + 1}` : `page ${target.number}`;
   if (pageHasContent(target) && !window.confirm(`Replace what's on ${label}${target.title ? " (“" + target.title + "”)" : ""} with the copied page?`)) return;
+  const rec = beginUndo([target.id]);
   await updateDoc(doc(db, "issues", currentIssueId, "pages", target.id), {
     ...pageClipboard.data,
     lastEditedBy: currentUserName,
     lastEditedAt: serverTimestamp()
   });
-  toast(`Pasted onto ${label}`);
+  pushUndo(rec, `Paste onto ${label}`);
+  toast(`Pasted onto ${label}`, { undo: true });
   return true;
 }
 
@@ -3333,6 +3464,8 @@ document.getElementById("detailForm").addEventListener("submit", async (e) => {
   // Only write the lock if it was changed, so covers keep their "locked by default".
   const lockNow = document.getElementById("fLocked").checked;
   if (!wantSpread && lockNow !== lockInitial) extra.locked = lockNow;
+  const editedPage = currentPages.find(x => x.id === targetId);
+  const rec = beginUndo([targetId, ...(pair ? [pair.verso.id, pair.recto.id] : [])]);
   if (pair && !wantSpread && targetId !== pair.verso.id && pair.verso.spread) {
     await updateDoc(doc(db, "issues", currentIssueId, "pages", pair.verso.id), { spread: false });
   }
@@ -3373,9 +3506,10 @@ document.getElementById("detailForm").addEventListener("submit", async (e) => {
     lastEditedAt: serverTimestamp()
   });
   document.getElementById("detailOverlay").hidden = true;
+  pushUndo(rec, `Edit ${wantSpread ? "spread " + pair.verso.number + "–" + pair.recto.number : "page " + (editedPage ? editedPage.number : "")}`);
   toast(sharpImageFailed
     ? "Saved — picture kept as a thumbnail only (the sharp version couldn't be saved; try again later)"
-    : "Saved");
+    : "Saved", { undo: true });
 });
 
 /* ============================= USER AVATAR ============================= */
