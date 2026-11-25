@@ -1379,7 +1379,7 @@ const firebaseConfig = {
 
 // Addresses that are always authorised and can manage the team list
 // and create issues. Must match the admin list in your Firestore rules.
-const ADMIN_EMAILS = ["stewart.hawkins@forbes.com.au", "jimhawkins.forbes@gmail.com"];
+const ADMIN_EMAILS = ["stewart.hawkins@forbes.com.au", "jimhawkins.forbes@gmail.com", "craig.thompson@forbes.com.au"];
 
 const CONTENT_TYPES = {
   unassigned:  { label: "Unassigned",  color: "var(--ct-unassigned)" },
@@ -2740,13 +2740,31 @@ document.getElementById("restoreFile").addEventListener("change", async (e) => {
   if (!toRestore.length && !backup.allowlist.length) { setBackupStatus("Nothing to restore — every issue in that backup is already here."); return; }
   if (!window.confirm(msg)) return;
 
+  const notAllowed = (err) => err && (err.code === "permission-denied" || /permission/i.test(err.message || ""));
+  const skippedNotes = [];
+  let restoredIssues = 0, restoredPages = 0;
   try {
     setBackupStatus("Restoring team list…");
-    await commitInChunks(backup.allowlist.map(a => [doc(db, "allowlist", a.id), fromPlain(a.data)]));
+    try {
+      await commitInChunks(backup.allowlist.map(a => [doc(db, "allowlist", a.id), fromPlain(a.data)]));
+    } catch (err) {
+      if (!notAllowed(err)) throw err;
+      // Only the main admin account may change the team list (Firebase rules).
+      skippedNotes.push("team list (only the main admin account can change it)");
+    }
     let n = 0;
     for (const iss of toRestore) {
       n++;
       setBackupStatus(`Restoring issue ${n} of ${toRestore.length}…`);
+      if (!existing.has(iss.id)) {
+        try {
+          await setDoc(doc(db, "issues", iss.id), fromPlain(iss.data));
+        } catch (err) {
+          if (!notAllowed(err)) throw err;
+          skippedNotes.push(`“${iss.data?.name || iss.id}” (only the main admin account can create issues)`);
+          continue;
+        }
+      }
       if (overwrite && existing.has(iss.id)) {
         // Clear pages that aren't in the backup so the issue matches it exactly.
         const keep = new Set([...iss.pages, ...(iss.images || [])].map(p => p.id));
@@ -2757,12 +2775,15 @@ document.getElementById("restoreFile").addEventListener("change", async (e) => {
           dels.slice(i, i + 300).forEach(d => b.delete(d.ref));
           await b.commit();
         }
+        // Existing issue: bring its name/settings back too (an update, which every admin may do).
+        await setDoc(doc(db, "issues", iss.id), fromPlain(iss.data));
       }
-      await setDoc(doc(db, "issues", iss.id), fromPlain(iss.data));
       const ops = [...iss.pages, ...(iss.images || [])].map(p => [doc(db, "issues", iss.id, "pages", p.id), fromPlain(p.data)]);
       await commitInChunks(ops, (d, t) => setBackupStatus(`Restoring issue ${n} of ${toRestore.length} — ${d} of ${t} items…`));
+      restoredIssues++; restoredPages += iss.pages.length;
     }
-    setBackupStatus(`Restore complete: ${toRestore.length} issue${toRestore.length === 1 ? "" : "s"}, ${pages} pages, ${backup.allowlist.length} team members.`);
+    setBackupStatus(`Restore complete: ${restoredIssues} issue${restoredIssues === 1 ? "" : "s"}, ${restoredPages} pages` +
+      (skippedNotes.length ? `. Skipped: ${skippedNotes.join("; ")}.` : `, ${backup.allowlist.length} team members.`), skippedNotes.length > 0);
     toast("Backup restored");
   } catch (err) {
     console.error(err);
