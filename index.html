@@ -1006,6 +1006,44 @@
     font:inherit;font-weight:700;color:var(--accent);text-decoration:underline;text-underline-offset:3px;
   }
   @media (max-width:600px){ #undoBtn .lbl{display:none;} }
+
+  /* =====================================================================
+     "FINANCIAL PRESS" PALETTE (Nov 2026)
+     Deep ink section colours, white type on the bands, editorial pages on
+     near-cream paper (13% tint), ad & paid pages strongly tinted (36%).
+     To go back to the previous brighter palette, delete this block.
+     ===================================================================== */
+  :root{
+    --ct-editorial:#1f3a68;     /* Frontrunner — deep navy    */
+    --ct-column:#3f6f9e;        /* Features — steel blue      */
+    --ct-forbeslife:#7d93b5;    /* Forbes Life — slate blue   */
+    --ct-international:#101c3d; /* International — midnight   */
+    --ct-advertising:#1d5c40;   /* Advertising — racing green */
+    --ct-housead:#8a1f2f;       /* House Ad — claret          */
+    --ct-promotion:#5a2a5c;     /* Brand Voice — aubergine    */
+    --ct-unassigned:#b3ab9e;    /* Unassigned — warm grey     */
+    --st-planned:#8f8a80; --st-commissioned:#6e5f93; --st-interview:#2c7470; --st-shoot:#a5552f;
+    --st-drafted:#3f6f9e; --st-subbed:#a97b1f; --st-signedoff:#2b6e47;
+  }
+  :root.theme-light{ --ct-unassigned:#b3ab9e; --st-planned:#8f8a80; --paper:#fbf8f1; --bg:#d4cdbf; }
+  .page-card{--tint:color-mix(in srgb, var(--ct-color, transparent) 13%, var(--paper)) !important;}
+  .half{background:color-mix(in srgb, var(--ct-color) 13%, var(--paper)) !important;}
+  /* ad & paid space stands out */
+  .page-card.type-advertising, .page-card.type-promotion, .page-card.type-houseAd{
+    --tint:color-mix(in srgb, var(--ct-color) 36%, var(--paper)) !important;
+  }
+  .half.type-advertising, .half.type-promotion, .half.type-houseAd{
+    background:color-mix(in srgb, var(--ct-color) 36%, var(--paper)) !important;
+  }
+  .half.type-unassigned{background:var(--paper) !important;}
+  .page-card .type-band, .half .type-band{color:#fff !important;letter-spacing:0.14em;}
+  .page-card.type-unassigned .type-band, .half.type-unassigned .type-band{color:#4a4d55 !important;background:#e6dfd1 !important;}
+  .page-card:not(.type-unassigned):not(.split-card) > .card-actions .edit-btn{color:#fff !important;}
+  .status-badge{color:#fff !important;}
+  .status-badge .dot{background:rgba(255,255,255,0.75) !important;}
+  .page-title{color:#111317 !important;}
+  .sum-paid{background:color-mix(in srgb, var(--ct-advertising) 12%, transparent) !important;border-color:color-mix(in srgb, var(--ct-advertising) 40%, transparent) !important;}
+  :root:not(.theme-light) .swatch, :root:not(.theme-light) .sum-dot{box-shadow:0 0 0 1px rgba(255,255,255,0.35);}
 </style>
 <script>
   (function(){
