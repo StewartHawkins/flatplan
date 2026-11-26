@@ -1044,6 +1044,27 @@
   .page-title{color:#111317 !important;}
   .sum-paid{background:color-mix(in srgb, var(--ct-advertising) 12%, transparent) !important;border-color:color-mix(in srgb, var(--ct-advertising) 40%, transparent) !important;}
   :root:not(.theme-light) .swatch, :root:not(.theme-light) .sum-dot{box-shadow:0 0 0 1px rgba(255,255,255,0.35);}
+
+  /* ---- crowded pages: never spill past the bottom of the page ----
+     Fixed: band, kicker, headline (max 3 lines), byline/words, status + edited line.
+     Flexible: the picture shrinks first, then the note gives up lines (with a fade). */
+  .page-card > .page-title{
+    display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;flex-shrink:0;
+  }
+  .page-card > .page-card-foot{flex-shrink:0;margin-top:auto;}
+  .page-card > .card-thumb{flex:0 10 132px !important;min-height:0 !important;max-height:132px;}
+  .page-card > .card-notes{
+    flex:0 1 auto !important;min-height:0;
+    -webkit-mask:linear-gradient(to bottom, #000 calc(100% - 0.9em), transparent);
+            mask:linear-gradient(to bottom, #000 calc(100% - 0.9em), transparent);
+  }
+  .page-card > .meta-line{flex-shrink:0;}
+  .page-card .edited-caption{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  @media (max-width:520px){
+    /* phones: no room for both — keep the picture, the note stays in the edit panel */
+    .page-card > .card-thumb ~ .card-notes{display:none !important;}
+    .page-card > .card-thumb{min-height:0 !important;}
+  }
 </style>
 <script>
   (function(){
