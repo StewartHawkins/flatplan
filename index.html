@@ -165,9 +165,9 @@
   .presence-row{display:flex;align-items:center;gap:4px;}
   .presence-chip{
     width:26px;height:26px;border-radius:50%;
-    background:var(--ct-editorial);
-    color:#0c1524;
-    font-size:11px;font-weight:700;
+    background:var(--pc, #1f3a68);
+    color:#fff;
+    font-size:11px;font-weight:700;letter-spacing:0.02em;
     display:flex;align-items:center;justify-content:center;
     border:2px solid var(--bg-elevated);
     margin-left:-8px;
@@ -3651,10 +3651,18 @@ function renderPresence(){
   const row = document.getElementById("presenceRow");
   row.innerHTML = active.slice(0, 8).map(p => {
     const initials = (p.name || "?").split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
-    return `<span class="presence-chip" title="${escapeHtml(p.name || "")}">${escapeHtml(initials)}</span>`;
+    return `<span class="presence-chip" style="--pc:${personColour(p.name || "")}" title="${escapeHtml(p.name || "")}">${escapeHtml(initials)}</span>`;
   }).join("");
 }
 setInterval(renderPresence, 15000);
+
+// Each person gets their own colour, picked from their name, so it stays the same every visit.
+const PERSON_COLOURS = ["#1f3a68", "#1d5c40", "#8a1f2f", "#5a2a5c", "#2c7470", "#a5552f", "#3f6f9e", "#7a5c12"];
+function personColour(name){
+  let h = 0;
+  for (const ch of String(name)) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  return PERSON_COLOURS[h % PERSON_COLOURS.length];
+}
 
 /* ============================= ADMIN: TEAM LIST ============================= */
 
