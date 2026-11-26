@@ -38,6 +38,8 @@
     --st-interview:#22c7b8;
     --st-shoot:#ff8a5c;
     --st-drafted:#4d93ff;
+    --st-copyfiled:#5cc8e0;
+    --st-design:#e07ab0;
     --st-subbed:#ffb02e;
     --st-signedoff:#2bd47d;
   }
@@ -1023,7 +1025,7 @@
     --ct-promotion:#5a2a5c;     /* Brand Voice — aubergine    */
     --ct-unassigned:#b3ab9e;    /* Unassigned — warm grey     */
     --st-planned:#8f8a80; --st-commissioned:#6e5f93; --st-interview:#2c7470; --st-shoot:#a5552f;
-    --st-drafted:#3f6f9e; --st-subbed:#a97b1f; --st-signedoff:#2b6e47;
+    --st-drafted:#3f6f9e; --st-copyfiled:#1f5f73; --st-subbed:#a97b1f; --st-design:#8a3d62; --st-signedoff:#2b6e47;
   }
   :root.theme-light{ --ct-unassigned:#b3ab9e; --st-planned:#8f8a80; --paper:#fbf8f1; --bg:#d4cdbf; }
   .page-card{--tint:color-mix(in srgb, var(--ct-color, transparent) 13%, var(--paper)) !important;}
@@ -1467,7 +1469,9 @@ const STATUSES = {
   interviewConfirmed: { label: "Interview Confirmed", short: "Interview ✓", color: "var(--st-interview)" },
   shootConfirmed:     { label: "Shoot Confirmed",     short: "Shoot ✓",     color: "var(--st-shoot)" },
   drafted:   { label: "Drafted",     color: "var(--st-drafted)" },
+  copyFiled: { label: "Copy Filed",  color: "var(--st-copyfiled)" },
   subbed:    { label: "Subbed",      color: "var(--st-subbed)" },
+  sentToDesign: { label: "Sent to Design", short: "To Design", color: "var(--st-design)" },
   signedoff: { label: "Signed off",  color: "var(--st-signedoff)" }
 };
 
