@@ -1109,6 +1109,17 @@
     </div>
   </div>
 
+  <div id="verifyEmailScreen" class="center-screen" hidden>
+    <div class="auth-box">
+      <h1>Confirm your email</h1>
+      <p class="sub">To keep the flatplan private, we need to check this inbox is yours. We've sent a link to <strong id="verifyEmailAddress"></strong>. Click it, then come back here.</p>
+      <p class="err-text" id="verifyMsg"></p>
+      <button class="btn" id="verifyDoneBtn">I've clicked the link</button>
+      <button class="btn secondary" id="verifyResendBtn" style="margin-top:8px">Send the email again</button>
+      <button class="btn secondary" id="signOutFromVerify" style="margin-top:8px">Sign out</button>
+    </div>
+  </div>
+
   <div id="notAuthorizedScreen" class="center-screen" hidden>
     <div class="auth-box">
       <h1>Not authorised yet</h1>
@@ -1426,7 +1437,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import {
   getAuth, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink,
   onAuthStateChanged, signOut, signInWithEmailAndPassword,
-  createUserWithEmailAndPassword, sendPasswordResetEmail
+  createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc,
@@ -1504,7 +1515,7 @@ const db = getFirestore(app);
 
 /* ---------- small helpers ---------- */
 function show(id){
-  ["loadingScreen","signinScreen","checkEmailScreen","notAuthorizedScreen","nameSetupScreen","appScreen"]
+  ["loadingScreen","signinScreen","checkEmailScreen","verifyEmailScreen","notAuthorizedScreen","nameSetupScreen","appScreen"]
     .forEach(s => document.getElementById(s).hidden = (s !== id));
 }
 function escapeHtml(str){
@@ -1695,13 +1706,16 @@ document.getElementById("nameForm").addEventListener("submit", async (e) => {
 async function checkAuthorization(user){
   const emailLower = user.email.toLowerCase();
   isAdmin = ADMIN_EMAILS.map(e => e.toLowerCase()).includes(emailLower);
-  if (isAdmin) return ensureMemberProfile(user);
   try {
-    const snap = await getDoc(doc(db, "allowlist", emailLower));
-    if (snap.exists()) return ensureMemberProfile(user);
-    show("notAuthorizedScreen");
+    if (!isAdmin) {
+      const snap = await getDoc(doc(db, "allowlist", emailLower));
+      if (!snap.exists()) { show("notAuthorizedScreen"); return; }
+    }
+    return await ensureMemberProfile(user);
   } catch (e) {
     console.error(e);
+    // With the new rules, an unconfirmed newcomer can't read anything yet.
+    if (!user.emailVerified && e && e.code === "permission-denied") return showVerify(user, true);
     show("notAuthorizedScreen");
   }
 }
@@ -1709,12 +1723,61 @@ async function checkAuthorization(user){
 async function ensureMemberProfile(user){
   const snap = await getDoc(doc(db, "members", user.uid));
   if (snap.exists()) {
+    // Already on the team before email confirmation came in — carry on as normal.
     currentUserName = snap.data().name || user.email;
     enterApp();
+  } else if (!user.emailVerified) {
+    showVerify(user, true);
   } else {
     show("nameSetupScreen");
   }
 }
+
+/* ---------- email confirmation for new accounts ---------- */
+const VERIFY_SENT_KEY = "flatplanVerifySent:";
+function setVerifyMsg(msg, ok){
+  const el = document.getElementById("verifyMsg");
+  el.textContent = msg || ""; el.classList.toggle("ok", !!ok);
+}
+async function sendVerify(user){
+  try {
+    await sendEmailVerification(user, { url: window.location.origin + window.location.pathname });
+    try { localStorage.setItem(VERIFY_SENT_KEY + user.uid, String(Date.now())); } catch (_) {}
+    setVerifyMsg("Email sent. Check junk mail too.", true);
+  } catch (err) {
+    console.error(err);
+    setVerifyMsg(err && err.code === "auth/too-many-requests"
+      ? "We've just sent one — give it a few minutes before asking again."
+      : friendlyAuthError(err));
+  }
+}
+async function showVerify(user, autoSend){
+  document.getElementById("verifyEmailAddress").textContent = user.email;
+  setVerifyMsg("");
+  show("verifyEmailScreen");
+  if (autoSend) {
+    let last = 0;
+    try { last = Number(localStorage.getItem(VERIFY_SENT_KEY + user.uid)) || 0; } catch (_) {}
+    if (Date.now() - last > 10 * 60 * 1000) await sendVerify(user);   // don't resend on every reload
+  }
+}
+document.getElementById("verifyResendBtn").addEventListener("click", () => currentUser && sendVerify(currentUser));
+document.getElementById("signOutFromVerify").addEventListener("click", () => signOut(auth));
+document.getElementById("verifyDoneBtn").addEventListener("click", async () => {
+  if (!currentUser) return;
+  const btn = document.getElementById("verifyDoneBtn"); btn.disabled = true;
+  try {
+    await currentUser.reload();
+    if (!auth.currentUser.emailVerified) {
+      setVerifyMsg("Not confirmed yet — open the email and click the link first.");
+      return;
+    }
+    await auth.currentUser.getIdToken(true);   // so the database sees the confirmed email
+    checkAuthorization(auth.currentUser);
+  } catch (err) {
+    console.error(err); setVerifyMsg(friendlyAuthError(err));
+  } finally { btn.disabled = false; }
+});
 
 onAuthStateChanged(auth, (user) => {
   currentUser = user;
