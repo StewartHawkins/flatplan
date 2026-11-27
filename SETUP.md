@@ -94,3 +94,17 @@ Open **Team** (top right) → **Backup**.
 2. Put the new project's web config into `firebaseConfig` near the top of the script in
    `index.html` and upload it.
 3. Sign in as the admin, set your name, open **Team → Restore from backup…** and pick the file.
+
+## Email confirmation for new team members (November 2026)
+
+Password sign-up doesn't prove that someone owns the email address they type. So new accounts now have to confirm their inbox before they can see anything.
+
+- **People who had already signed in** before this change carry on as normal. They already have a member record, and the rules treat that as confirmed.
+- **New people** see a "Confirm your email" screen after creating their account. A link is emailed to them automatically. They click it, come back, and press "I've clicked the link". There is a resend button, and they're told to check junk mail.
+
+To switch it on:
+1. Upload the new `index.html`.
+2. Open the Firebase console, go to Firestore Database, then Rules. Replace everything with the contents of `firestore.rules` and click **Publish**.
+3. Optional: Authentication → Templates → Email address verification lets you change the sender name, for example to "Forbes Flatplan".
+
+If the project ever has to be rebuilt from a backup, everyone, including the admin, confirms their email once on first sign-in, because the member records start empty.
